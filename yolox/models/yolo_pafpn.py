@@ -25,9 +25,17 @@ class YOLOPAFPN(nn.Module):
     ):
         super().__init__()
         self.backbone = CSPDarknet(depth, width, depthwise=depthwise, act=act)
-        self.in_features = in_features
-        self.in_channels = in_channels
+        self.in_features = in_features      # ("dark3", "dark4", "dark5")
+        self.in_channels = in_channels      # [256, 512, 1024]
         Conv = DWConv if depthwise else BaseConv
+        '''
+        BaseConv: A Conv2d -> Batchnorm -> silu/leaky relu block
+        in_channels, out_channels, ksize, stride, groups=1, bias=False, act="silu"
+        '''
+        '''
+        DWConv: Depthwise Conv (with BN and activation) + Pointwise Conv (with BN and activation)
+        in_channels, out_channels, ksize, stride=1, act="silu"
+        '''
 
         self.upsample = nn.Upsample(scale_factor=2, mode="nearest")
         self.lateral_conv0 = BaseConv(
@@ -89,10 +97,10 @@ class YOLOPAFPN(nn.Module):
             Tuple[Tensor]: FPN feature.
         """
 
-        #  backbone
-        out_features = self.backbone(input)
-        features = [out_features[f] for f in self.in_features]
-        [x2, x1, x0] = features
+        # backbone
+        out_features = self.backbone(input)     # input: [1, 3, 64, 64]
+        features = [out_features[f] for f in self.in_features]      # 'dark3', 'dark4', 'dark5'
+        [x2, x1, x0] = features     # x2: [1, 320, 8, 8] / 8, x1: [1, 640, 4, 4] / 16, x0: [1, 1280, 2, 2] / 32
 
         fpn_out0 = self.lateral_conv0(x0)  # 1024->512/32
         f_out0 = self.upsample(fpn_out0)  # 512/16
@@ -112,5 +120,5 @@ class YOLOPAFPN(nn.Module):
         p_out0 = torch.cat([p_out0, fpn_out0], 1)  # 512->1024/32
         pan_out0 = self.C3_n4(p_out0)  # 1024->1024/32
 
-        outputs = (pan_out2, pan_out1, pan_out0)
+        outputs = (pan_out2, pan_out1, pan_out0)        # 256/8, 512/16, 1024/32
         return outputs

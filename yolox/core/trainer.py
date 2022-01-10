@@ -45,10 +45,10 @@ class Trainer:
         self.rank = get_rank()
         self.local_rank = args.local_rank
         self.device = "cuda:{}".format(self.local_rank)
-        self.use_model_ema = exp.ema
+        self.use_model_ema = exp.ema    # True
 
         # data/dataloader related attr
-        self.data_type = torch.float16 if args.fp16 else torch.float32
+        self.data_type = torch.float16 if args.fp16 else torch.float32      # torch.float16
         self.input_size = exp.input_size
         self.best_ap = 0
 
@@ -97,18 +97,18 @@ class Trainer:
         data_end_time = time.time()
 
         with torch.cuda.amp.autocast(enabled=self.amp_training):
-            outputs = self.model(inps, targets)
+            outputs = self.model(inps, targets)             # output = model(input)
         loss = outputs["total_loss"]
 
-        self.optimizer.zero_grad()
-        self.scaler.scale(loss).backward()
-        self.scaler.step(self.optimizer)
+        self.optimizer.zero_grad()                  # optimizer.zero_grad
+        self.scaler.scale(loss).backward()          # loss.backward
+        self.scaler.step(self.optimizer)            # optimizer.step
         self.scaler.update()
 
-        if self.use_model_ema:
+        if self.use_model_ema:                  # ema
             self.ema_model.update(self.model)
 
-        lr = self.lr_scheduler.update_lr(self.progress_in_iter + 1)
+        lr = self.lr_scheduler.update_lr(self.progress_in_iter + 1)     # lr scheduler
         for param_group in self.optimizer.param_groups:
             param_group["lr"] = lr
 
@@ -133,14 +133,14 @@ class Trainer:
         model.to(self.device)
 
         # solver related init
-        self.optimizer = self.exp.get_optimizer(self.args.batch_size)
+        self.optimizer = self.exp.get_optimizer(self.args.batch_size)       # optimizer
 
         # value of epoch will be set in `resume_train`
-        model = self.resume_train(model)
+        model = self.resume_train(model)                                    # model
 
         # data related init
-        self.no_aug = self.start_epoch >= self.max_epoch - self.exp.no_aug_epochs
-        self.train_loader = self.exp.get_data_loader(
+        self.no_aug = self.start_epoch >= self.max_epoch - self.exp.no_aug_epochs       # close aug for the last few epochs
+        self.train_loader = self.exp.get_data_loader(                       # dataloader
             batch_size=self.args.batch_size,
             is_distributed=self.is_distributed,
             no_aug=self.no_aug,
@@ -174,7 +174,7 @@ class Trainer:
             self.tblogger = SummaryWriter(self.file_name)
 
         logger.info("Training start...")
-        #logger.info("\n{}".format(model))
+        # logger.info("\n{}".format(model))
 
     def after_train(self):
         logger.info(
@@ -186,7 +186,7 @@ class Trainer:
     def before_epoch(self):
         logger.info("---> start train epoch{}".format(self.epoch + 1))
 
-        if self.epoch + 1 == self.max_epoch - self.exp.no_aug_epochs or self.no_aug:
+        if self.epoch + 1 == self.max_epoch - self.exp.no_aug_epochs or self.no_aug:        # check epoch to close aug
             
             logger.info("--->No mosaic aug now!")
             self.train_loader.close_mosaic()
@@ -201,12 +201,12 @@ class Trainer:
                 self.save_ckpt(ckpt_name="last_mosaic_epoch")
 
     def after_epoch(self):
-        if self.use_model_ema:
+        if self.use_model_ema:          # ema
             self.ema_model.update_attr(self.model)
 
-        self.save_ckpt(ckpt_name="latest")
+        self.save_ckpt(ckpt_name="latest")          # save checkpoints
 
-        if (self.epoch + 1) % self.exp.eval_interval == 0:
+        if (self.epoch + 1) % self.exp.eval_interval == 0:      # save checkpoints
             all_reduce_norm(self.model)
             self.evaluate_and_save_model()
 
@@ -269,7 +269,7 @@ class Trainer:
             else:
                 ckpt_file = self.args.ckpt
 
-            ckpt = torch.load(ckpt_file, map_location=self.device)
+            ckpt = torch.load(ckpt_file, map_location=self.device)          # torch.load
             # resume the model/optimizer state dict
             model.load_state_dict(ckpt["model"])
             self.optimizer.load_state_dict(ckpt["optimizer"])

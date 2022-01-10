@@ -18,9 +18,9 @@ class YOLOX(nn.Module):
     def __init__(self, backbone=None, head=None):
         super().__init__()
         if backbone is None:
-            backbone = YOLOPAFPN()
+            backbone = YOLOPAFPN()      # backbone, CSPNet with PANet
         if head is None:
-            head = YOLOXHead(80)
+            head = YOLOXHead(80)        # head
 
         self.backbone = backbone
         self.head = head

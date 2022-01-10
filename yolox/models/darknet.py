@@ -117,7 +117,7 @@ class CSPDarknet(nn.Module):
         # dark2
         self.dark2 = nn.Sequential(
             Conv(base_channels, base_channels * 2, 3, 2, act=act),
-            CSPLayer(
+            CSPLayer(       # CSP Bottleneck with 3 convolutions
                 base_channels * 2,
                 base_channels * 2,
                 n=base_depth,
@@ -129,7 +129,7 @@ class CSPDarknet(nn.Module):
         # dark3
         self.dark3 = nn.Sequential(
             Conv(base_channels * 2, base_channels * 4, 3, 2, act=act),
-            CSPLayer(
+            CSPLayer(       # CSP Bottleneck with 3 convolutions
                 base_channels * 4,
                 base_channels * 4,
                 n=base_depth * 3,
@@ -141,7 +141,7 @@ class CSPDarknet(nn.Module):
         # dark4
         self.dark4 = nn.Sequential(
             Conv(base_channels * 4, base_channels * 8, 3, 2, act=act),
-            CSPLayer(
+            CSPLayer(       # CSP Bottleneck with 3 convolutions
                 base_channels * 8,
                 base_channels * 8,
                 n=base_depth * 3,
@@ -153,8 +153,8 @@ class CSPDarknet(nn.Module):
         # dark5
         self.dark5 = nn.Sequential(
             Conv(base_channels * 8, base_channels * 16, 3, 2, act=act),
-            SPPBottleneck(base_channels * 16, base_channels * 16, activation=act),
-            CSPLayer(
+            SPPBottleneck(base_channels * 16, base_channels * 16, activation=act),          # SPP
+            CSPLayer(       # CSP Bottleneck with 3 convolutions
                 base_channels * 16,
                 base_channels * 16,
                 n=base_depth,
@@ -165,6 +165,14 @@ class CSPDarknet(nn.Module):
         )
 
     def forward(self, x):
+        '''
+        x --> stem --> dark2 --> dark3 --> dark4 --> dark5 --> output
+        stem: Focus
+        dark2: Conv --> CSPLayer
+        dark3: Conv --> CSPLayer
+        dark4: Conv --> CSPLayer
+        dark5: Conv --> SPPBottleneck --> CSPLayer
+        '''
         outputs = {}
         x = self.stem(x)
         outputs["stem"] = x
@@ -176,4 +184,4 @@ class CSPDarknet(nn.Module):
         outputs["dark4"] = x
         x = self.dark5(x)
         outputs["dark5"] = x
-        return {k: v for k, v in outputs.items() if k in self.out_features}
+        return {k: v for k, v in outputs.items() if k in self.out_features}     # get feature w.r.t self.out_features

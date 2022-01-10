@@ -8,17 +8,17 @@ import cv2
 DATA_PATH = 'datasets/mot'
 OUT_PATH = os.path.join(DATA_PATH, 'annotations')
 SPLITS = ['train_half', 'val_half', 'train', 'test']  # --> split training data to train_half and val_half.
-HALF_VIDEO = True
-CREATE_SPLITTED_ANN = True
-CREATE_SPLITTED_DET = True
+HALF_VIDEO = True               # half video
+CREATE_SPLITTED_ANN = True      # create splitted ann
+CREATE_SPLITTED_DET = True      # create splitted det
 
 
 if __name__ == '__main__':
 
-    if not os.path.exists(OUT_PATH):
+    if not os.path.exists(OUT_PATH):    # check output path
         os.makedirs(OUT_PATH)
 
-    for split in SPLITS:
+    for split in SPLITS:        # iteration over split strategy
         if split == "test":
             data_path = os.path.join(DATA_PATH, 'test')
         else:
@@ -45,10 +45,10 @@ if __name__ == '__main__':
             images = os.listdir(img_path)
             num_images = len([image for image in images if 'jpg' in image])  # half and half
 
-            if HALF_VIDEO and ('half' in split):
+            if HALF_VIDEO and ('half' in split):        # half
                 image_range = [0, num_images // 2] if 'train' in split else \
                               [num_images // 2 + 1, num_images - 1]
-            else:
+            else:       # all
                 image_range = [0, num_images - 1]
 
             for i in range(num_images):
@@ -72,14 +72,14 @@ if __name__ == '__main__':
                 if CREATE_SPLITTED_ANN and ('half' in split):
                     anns_out = np.array([anns[i] for i in range(anns.shape[0])
                                          if int(anns[i][0]) - 1 >= image_range[0] and
-                                         int(anns[i][0]) - 1 <= image_range[1]], np.float32) 
+                                         int(anns[i][0]) - 1 <= image_range[1]], np.float32)
                     anns_out[:, 0] -= image_range[0]
                     gt_out = os.path.join(seq_path, 'gt/gt_{}.txt'.format(split))
                     fout = open(gt_out, 'w')
                     for o in anns_out:
                         fout.write('{:d},{:d},{:d},{:d},{:d},{:d},{:d},{:d},{:.6f}\n'.format(
                                     int(o[0]), int(o[1]), int(o[2]), int(o[3]), int(o[4]), int(o[5]),
-                                    int(o[6]), int(o[7]), o[8]))
+                                    int(o[6]), int(o[7]), o[8]))    # frameid, id, tlwh*4(absolute), class
                     fout.close()
                 if CREATE_SPLITTED_DET and ('half' in split):
                     dets_out = np.array([dets[i] for i in range(dets.shape[0])
@@ -91,7 +91,7 @@ if __name__ == '__main__':
                     for o in dets_out:
                         dout.write('{:d},{:d},{:.1f},{:.1f},{:.1f},{:.1f},{:.6f}\n'.format(
                                     int(o[0]), int(o[1]), float(o[2]), float(o[3]), float(o[4]), float(o[5]),
-                                    float(o[6])))
+                                    float(o[6])))       # frameid, id, tlwh*4(absolute), class
                     dout.close()
 
                 print('{} ann images'.format(int(anns[:, 0].max())))

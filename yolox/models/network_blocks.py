@@ -33,7 +33,7 @@ class BaseConv(nn.Module):
         self, in_channels, out_channels, ksize, stride, groups=1, bias=False, act="silu"
     ):
         super().__init__()
-        # same padding
+        # use same padding
         pad = (ksize - 1) // 2
         self.conv = nn.Conv2d(
             in_channels,
@@ -48,14 +48,17 @@ class BaseConv(nn.Module):
         self.act = get_activation(act, inplace=True)
 
     def forward(self, x):
-        return self.act(self.bn(self.conv(x)))
+        '''
+        x --> Conv2d --> BN --> activation --> x
+        '''
+        return self.act(self.bn(self.conv(x)))      # Conv ==> BN ==> activate
 
     def fuseforward(self, x):
         return self.act(self.conv(x))
 
 
 class DWConv(nn.Module):
-    """Depthwise Conv + Conv"""
+    """Depthwise Conv (with BN and activation) + Pointwise Conv (with BN and activation)"""
 
     def __init__(self, in_channels, out_channels, ksize, stride=1, act="silu"):
         super().__init__()
@@ -64,7 +67,7 @@ class DWConv(nn.Module):
             in_channels,
             ksize=ksize,
             stride=stride,
-            groups=in_channels,
+            groups=in_channels,     # depthwise
             act=act,
         )
         self.pconv = BaseConv(
@@ -72,6 +75,9 @@ class DWConv(nn.Module):
         )
 
     def forward(self, x):
+        '''
+        x --> dconv (e.g. depthwise conv --> BN --> act) --> pconv (e.g. pointwise conv --> BN --> act) --> x
+        '''
         x = self.dconv(x)
         return self.pconv(x)
 
@@ -95,6 +101,11 @@ class Bottleneck(nn.Module):
         self.use_add = shortcut and in_channels == out_channels
 
     def forward(self, x):
+        '''
+          | --> BaseConv (in_channels to hidden_channels) --> Conv (hidden_channels to out_channels) \
+        x                                                                                              --> add(optional)
+          \ --> shortcut                                                                             |
+        '''
         y = self.conv2(self.conv1(x))
         if self.use_add:
             y = y + x
@@ -115,6 +126,11 @@ class ResLayer(nn.Module):
         )
 
     def forward(self, x):
+        '''
+          | --> BaseConv(in_channels, mid_channels) --> BaseConv(mid_channels, in_channels) \
+        x                                                                                     --> add --> x
+          \ --> shortcut                                                                    |
+        '''
         out = self.layer2(self.layer1(x))
         return x + out
 
@@ -138,6 +154,13 @@ class SPPBottleneck(nn.Module):
         self.conv2 = BaseConv(conv2_channels, out_channels, 1, stride=1, act=activation)
 
     def forward(self, x):
+        '''
+                       | shortcut  \
+                       | MaxPool2d \
+        x --> BaseConv              --> BaseConv --> x
+                       \ MaxPool2d |
+                       \ MaxPool2d |
+        '''
         x = self.conv1(x)
         x = torch.cat([x] + [m(x) for m in self.m], dim=1)
         x = self.conv2(x)
@@ -178,6 +201,11 @@ class CSPLayer(nn.Module):
         self.m = nn.Sequential(*module_list)
 
     def forward(self, x):
+        '''
+             | BaseConv --> Bottleneck * n \
+        x -->                               cat --> BaseConv
+             \ BaseConv                    |
+        '''
         x_1 = self.conv1(x)
         x_2 = self.conv2(x)
         x_1 = self.m(x_1)

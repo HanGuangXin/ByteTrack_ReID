@@ -99,7 +99,7 @@ def main(exp, args):
     trainer = Trainer(exp, args)
     trainer.train()
 
-
+# python3 tools/train.py -f exps/example/mot/yolox_x_ablation.py -d 2 -b 2 --fp16 -o -c pretrained/yolox_x.pth.tar
 if __name__ == "__main__":
     args = make_parser().parse_args()
     exp = get_exp(args.exp_file, args.name)
