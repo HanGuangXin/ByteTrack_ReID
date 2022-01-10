@@ -88,7 +88,7 @@ class MosaicDetection(Dataset):
             indices = [idx] + [random.randint(0, len(self._dataset) - 1) for _ in range(3)]
 
             for i_mosaic, index in enumerate(indices):
-                img, _labels, _, _ = self._dataset.pull_item(index)
+                img, _labels, _, _ = self._dataset.pull_item(index)     # _labels format: tlbr(absolute value) + class_id + track_id
                 h0, w0 = img.shape[:2]  # orig hw
                 scale = min(1. * input_h / h0, 1. * input_w / w0)
                 img = cv2.resize(

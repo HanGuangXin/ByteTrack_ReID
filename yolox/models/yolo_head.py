@@ -43,6 +43,12 @@ class YOLOXHead(nn.Module):
         self.reg_preds = nn.ModuleList()        # reg pred layer
         self.obj_preds = nn.ModuleList()        # obj pred layer
         self.stems = nn.ModuleList()            # stems
+
+        # # TODO: reid head
+        # self.reid_convs = nn.ModuleList()        # cls conv layer
+        # self.reid_preds = nn.ModuleList()        # cls pred layer
+        # self.reid_dim = 128                      # dimension of reid embedding
+
         Conv = DWConv if depthwise else BaseConv
 
         for i in range(len(in_channels)):       # iteration over levels of output features
@@ -122,6 +128,37 @@ class YOLOXHead(nn.Module):
                     padding=0,
                 )
             )
+
+            # # TODO: reid head: reid_convs (2 * 3x3 Conv) + reid_preds (1 * 1x1 Conv)
+            # self.reid_convs.append(
+            #     nn.Sequential(      # 2 BaseConv layers
+            #         *[
+            #             Conv(
+            #                 in_channels=int(256 * width),
+            #                 out_channels=int(256 * width),
+            #                 ksize=3,
+            #                 stride=1,
+            #                 act=act,
+            #             ),
+            #             Conv(
+            #                 in_channels=int(256 * width),
+            #                 out_channels=int(256 * width),
+            #                 ksize=3,
+            #                 stride=1,
+            #                 act=act,
+            #             ),
+            #         ]
+            #     )
+            # )
+            # self.reid_preds.append(      # 1 Conv2d layer, output channel is 'self.n_anchors * self.num_classes'
+            #     nn.Conv2d(
+            #         in_channels=int(256 * width),
+            #         out_channels=self.reid_dim,
+            #         kernel_size=1,
+            #         stride=1,
+            #         padding=0,
+            #     )
+            # )
 
         self.use_l1 = False
         self.l1_loss = nn.L1Loss(reduction="none")

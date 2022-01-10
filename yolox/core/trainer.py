@@ -90,7 +90,7 @@ class Trainer:
     def train_one_iter(self):
         iter_start_time = time.time()
 
-        inps, targets = self.prefetcher.next()
+        inps, targets = self.prefetcher.next()      # imgs and targets
         inps = inps.to(self.data_type)
         targets = targets.to(self.data_type)
         targets.requires_grad = False
@@ -166,7 +166,7 @@ class Trainer:
         self.model = model
         self.model.train()
 
-        self.evaluator = self.exp.get_evaluator(
+        self.evaluator = self.exp.get_evaluator(            # COCOevaluator
             batch_size=self.args.batch_size, is_distributed=self.is_distributed
         )
         # Tensorboard logger

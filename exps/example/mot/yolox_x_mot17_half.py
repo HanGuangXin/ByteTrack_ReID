@@ -49,7 +49,7 @@ class Exp(MyExp):
                 std=(0.229, 0.224, 0.225),
                 max_labels=500,
             ),
-        )
+        )       # dataset.annotations[0][0].shape: [obj_num, 6], tlbr(absolute value) + class_id + track_id
 
         dataset = MosaicDetection(
             dataset,

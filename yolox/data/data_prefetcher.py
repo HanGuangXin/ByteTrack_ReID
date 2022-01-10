@@ -19,7 +19,7 @@ class DataPrefetcher:
     """
 
     def __init__(self, loader):
-        self.loader = iter(loader)
+        self.loader = iter(loader)      # MosaicDetection.__getitem__(idx)
         self.stream = torch.cuda.Stream()
         self.input_cuda = self._input_cuda_for_image
         self.record_stream = DataPrefetcher._record_stream_for_image
@@ -39,8 +39,8 @@ class DataPrefetcher:
 
     def next(self):
         torch.cuda.current_stream().wait_stream(self.stream)
-        input = self.next_input
-        target = self.next_target
+        input = self.next_input     # img: [1, 3, 800, 1440], e.g. [batchsize, channel, H, W]
+        target = self.next_target   # annots: [1, 1000, 6], e,g, [batchsize, 1000, class_id + tlwh + track_id]
         if input is not None:
             self.record_stream(input)
         if target is not None:
