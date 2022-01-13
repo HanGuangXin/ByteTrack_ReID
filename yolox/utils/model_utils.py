@@ -17,7 +17,7 @@ __all__ = [
 
 
 def get_model_info(model, tsize):
-
+    # settings for reid module (nID for classifier)
     stride = 64
     img = torch.zeros((1, 3, stride, stride), device=next(model.parameters()).device)
     flops, params = profile(deepcopy(model), inputs=(img,), verbose=False)

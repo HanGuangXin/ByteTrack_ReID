@@ -59,7 +59,7 @@ class Exp(BaseExp):
         self.test_conf = 0.001
         self.nmsthre = 0.65
 
-    def get_model(self):
+    def get_model(self, settings=None):
         from yolox.models import YOLOPAFPN, YOLOX, YOLOXHead
 
         def init_yolo(M):
@@ -70,8 +70,13 @@ class Exp(BaseExp):
 
         if getattr(self, "model", None) is None:
             in_channels = [256, 512, 1024]
+            if settings is not None:
+                nID = settings['total_ids']
+            else:
+                print("[warning] No nID got!!!")
+                nID = 1
             backbone = YOLOPAFPN(self.depth, self.width, in_channels=in_channels)
-            head = YOLOXHead(self.num_classes, self.width, in_channels=in_channels)
+            head = YOLOXHead(self.num_classes, self.width, in_channels=in_channels, nID=nID)
             self.model = YOLOX(backbone, head)
 
         self.model.apply(init_yolo)

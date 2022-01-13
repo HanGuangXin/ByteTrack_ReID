@@ -45,6 +45,7 @@ class MOTDataset(Dataset):
         self.name = name
         self.img_size = img_size
         self.preproc = preproc
+        self.nID = self.get_total_ids()         # TODO: total ids for reid classifier
 
     def __len__(self):
         return len(self.ids)
@@ -130,3 +131,12 @@ class MOTDataset(Dataset):
         if self.preproc is not None:
             img, target = self.preproc(img, target, self.input_dim)
         return img, target, img_info, img_id
+
+    # TODO: get total ids for each dataset, which is used in the classifier of reid branch
+    def get_total_ids(self):
+        max_id_each_img = []
+        for annotation in self.annotations:     # tuple (3): (res, img_info, file_name),
+            res = annotation[0]
+            max_id_each_img.append(int(max(res[:, 5])))
+        total_ids = max(max_id_each_img) + 1        # TODO Need Check: ids start with 0
+        return total_ids

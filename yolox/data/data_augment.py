@@ -260,7 +260,7 @@ class TrainTransform:
         labels_t = np.expand_dims(labels_t, 1)
         ids_t = np.expand_dims(ids_t, 1)
 
-        targets_t = np.hstack((labels_t, boxes_t, ids_t))       # get new labels(targets), format: class_id, bbox, track_id
+        targets_t = np.hstack((labels_t, boxes_t, ids_t))       # get new labels(targets), format: class_id, bbox(xywh), track_id
         padded_labels = np.zeros((self.max_labels, 6))
         padded_labels[range(len(targets_t))[: self.max_labels]] = targets_t[
             : self.max_labels

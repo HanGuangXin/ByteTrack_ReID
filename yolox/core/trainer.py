@@ -66,6 +66,10 @@ class Trainer:
             mode="a",
         )
 
+        # TODO: for reid
+        self.settings = {}
+        self.start_epoch = 0        # set default value
+
     def train(self):
         self.before_train()
         try:
@@ -124,9 +128,28 @@ class Trainer:
         logger.info("args: {}".format(self.args))
         logger.info("exp value:\n{}".format(self.exp))
 
+        # ================================ fake dataset with default self.start_epoch ================================
+        # the only difference between fake and real dataset is 'self.no_aug', which is determined by 'self.start_epoch'
+        self.no_aug = self.start_epoch >= self.max_epoch - self.exp.no_aug_epochs       # close aug for the last few epochs
+
+        try:        # mot dataset with ids
+            self.train_loader, settings = self.exp.get_data_loader(             # dataloader
+                batch_size=self.args.batch_size,
+                is_distributed=self.is_distributed,
+                no_aug=self.no_aug,
+            )
+            self.settings.update(settings)
+        except:     # only detection dataset
+            self.train_loader = self.exp.get_data_loader(                       # dataloader
+                batch_size=self.args.batch_size,
+                is_distributed=self.is_distributed,
+                no_aug=self.no_aug,
+            )
+        # ================================ fake dataset with default self.start_epoch ================================
+
         # model related init
         torch.cuda.set_device(self.local_rank)
-        model = self.exp.get_model()
+        model = self.exp.get_model(settings=self.settings)
         logger.info(
             "Model Summary: {}".format(get_model_info(model, self.exp.test_size))
         )
@@ -139,12 +162,25 @@ class Trainer:
         model = self.resume_train(model)                                    # model
 
         # data related init
-        self.no_aug = self.start_epoch >= self.max_epoch - self.exp.no_aug_epochs       # close aug for the last few epochs
-        self.train_loader = self.exp.get_data_loader(                       # dataloader
-            batch_size=self.args.batch_size,
-            is_distributed=self.is_distributed,
-            no_aug=self.no_aug,
-        )
+        if self.start_epoch != 0:       # with resume, generate real dataset
+            self.no_aug = self.start_epoch >= self.max_epoch - self.exp.no_aug_epochs       # close aug for the last few epochs
+
+            try:        # mot dataset with ids
+                self.train_loader, settings = self.exp.get_data_loader(             # dataloader
+                    batch_size=self.args.batch_size,
+                    is_distributed=self.is_distributed,
+                    no_aug=self.no_aug,
+                )
+                self.settings.update(settings)
+            except:     # only detection dataset
+                self.train_loader = self.exp.get_data_loader(                       # dataloader
+                    batch_size=self.args.batch_size,
+                    is_distributed=self.is_distributed,
+                    no_aug=self.no_aug,
+                )
+        else:                       # no resume, fake dataset and real dataset are the same
+            pass
+
         logger.info("init prefetcher, this might take one minute or less...")
         self.prefetcher = DataPrefetcher(self.train_loader)
         # max_iter means iters per epoch
@@ -249,6 +285,12 @@ class Trainer:
                 )
                 + (", size: {:d}, {}".format(self.input_size[0], eta_str))
             )
+
+            # log losses in tensorboard (0111)
+            if self.rank == 0:          # need this line, or will 'process.wait()'
+                for k, v in loss_meter.items():
+                    self.tblogger.add_scalar("loss/"+k, v.latest, self.epoch * self.max_iter + (self.iter+1))
+
             self.meter.clear_meters()
 
         # random resizing
