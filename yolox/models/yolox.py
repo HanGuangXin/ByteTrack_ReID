@@ -31,7 +31,7 @@ class YOLOX(nn.Module):
 
         if self.training:
             assert targets is not None
-            loss, iou_loss, conf_loss, cls_loss, loss_id, l1_loss, num_fg = self.head(       # TODO: ReID, update 'id_loss'
+            loss, iou_loss, conf_loss, cls_loss, loss_id, l1_loss, num_fg, settings = self.head(       # TODO: ReID, update 'id_loss'
                 fpn_outs, targets, x
             )
             outputs = {
@@ -42,6 +42,7 @@ class YOLOX(nn.Module):
                 "cls_loss": cls_loss,
                 "loss_id": loss_id,             # TODO: ReID, update 'id_loss'
                 "num_fg": num_fg,
+                "settings": settings            # TODO: settings for uncertainty loss
             }
         else:
             outputs = self.head(fpn_outs)

@@ -52,6 +52,11 @@ class YOLOXHead(nn.Module):
         self.reid_preds = nn.ModuleList()        # cls pred layer
         self.emb_dim = 128                      # dimension of reid embedding
         self.reid_classifier = nn.Linear(self.emb_dim, self.nID)        # TODO: ReID classifier, only used when training
+        self.s_det = nn.Parameter(-1.85 * torch.ones(1))                # TODO: For Uncertainty loss
+        self.s_id = nn.Parameter(-1.05 * torch.ones(1))                 # TODO: For Uncertainty loss
+        # self.s_det = nn.Parameter(3 * torch.ones(1))                # TODO: For Uncertainty loss
+        # self.s_id = nn.Parameter(2 * torch.ones(1))                 # TODO: For Uncertainty loss
+        self.settings = {}
 
         Conv = DWConv if depthwise else BaseConv
 
@@ -491,8 +496,19 @@ class YOLOXHead(nn.Module):
             loss_l1 = 0.0
 
         reg_weight = 5.0
+
+        # loss = reg_weight * loss_iou + loss_obj + loss_cls + loss_l1      # TODO: original loss (only detection)
         # loss = reg_weight * loss_iou + loss_obj + loss_cls + loss_l1 + 0.5 * loss_id        # TODO: ReID. set weight of loss_id to 0.5
-        loss = loss_id          # TODO: only train id head
+        # loss = loss_id          # TODO: only train id head
+
+        # TODO: ReID. Uncertainty Loss
+        # print("self.s_det:", self.s_det, "self.s_id:", self.s_id)           # for debug (0114)
+        det_loss = reg_weight * loss_iou + loss_obj + loss_cls + loss_l1 + 0.5 * loss_id
+        id_loss = loss_id
+        loss = torch.exp(-self.s_det) * det_loss + torch.exp(-self.s_id) * id_loss + (self.s_det + self.s_id)
+        loss *= 0.5
+
+        self.settings.update({'s_det': self.s_det, 's_id': self.s_id})
 
         return (
             loss,
@@ -502,6 +518,7 @@ class YOLOXHead(nn.Module):
             loss_id,                # TODO: ReID. return id loss
             loss_l1,
             num_fg / max(num_gts, 1),
+            self.settings
         )
 
     def get_l1_target(self, l1_target, gt, stride, x_shifts, y_shifts, eps=1e-8):

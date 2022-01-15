@@ -27,6 +27,7 @@ class Exp(MyExp):
         self.nmsthre = 0.7
         self.no_aug_epochs = 10
         self.basic_lr_per_img = 0.001 / 64.0
+        # self.basic_lr_per_img = 0.001 / 64.0        # TODO: try for uncertainty loss
         self.warmup_epochs = 1
 
     def get_data_loader(self, batch_size, is_distributed, no_aug=False):

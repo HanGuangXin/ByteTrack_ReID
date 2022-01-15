@@ -69,6 +69,7 @@ class Trainer:
         # TODO: for reid
         self.settings = {}
         self.start_epoch = 0        # set default value
+        self.loss_settings = {}     # settings for loss, i.g. uncertainty parameter
 
     def train(self):
         self.before_train()
@@ -104,6 +105,9 @@ class Trainer:
             outputs = self.model(inps, targets)             # output = model(input)
         loss = outputs["total_loss"]
 
+        if 'settings' in outputs.keys():        # TODO 0114: loss parameters
+            self.loss_settings.update(outputs.pop('settings'))              # get value and delete
+
         self.optimizer.zero_grad()                  # optimizer.zero_grad
         self.scaler.scale(loss).backward()          # loss.backward
         self.scaler.step(self.optimizer)            # optimizer.step
@@ -123,6 +127,7 @@ class Trainer:
             lr=lr,
             **outputs,
         )
+
 
     def before_train(self):
         logger.info("args: {}".format(self.args))
@@ -157,6 +162,8 @@ class Trainer:
 
         # solver related init
         self.optimizer = self.exp.get_optimizer(self.args.batch_size)       # optimizer
+        # self.optimizer.add_param_group({"params": model.head.s_det})    # TODO: Uncertainty loss (0114)
+        # self.optimizer.add_param_group({"params": model.head.s_id})     # TODO: Uncertainty loss (0114)
 
         # value of epoch will be set in `resume_train`
         model = self.resume_train(model)                                    # model
@@ -266,9 +273,17 @@ class Trainer:
                 self.epoch + 1, self.max_epoch, self.iter + 1, self.max_iter
             )
             loss_meter = self.meter.get_filtered_meter("loss")
-            loss_str = ", ".join(
-                ["{}: {:.3f}".format(k, v.latest) for k, v in loss_meter.items()]
-            )
+
+            # TODO: has to be modified after using uncertainty loss, but I don't know what is wrong?
+            # loss_str = ", ".join(
+            #     ["{}: {:.3f}".format(k, v.latest) for k, v in loss_meter.items()]
+            # )
+            loss_str = ""
+            for k, v in loss_meter.items():
+                try:
+                    loss_str += "{}: {:.3f} ".format(k, v.latest.item())
+                except:
+                    loss_str += "{}: {:.3f} ".format(k, v.latest)
 
             time_meter = self.meter.get_filtered_meter("time")
             time_str = ", ".join(
@@ -286,10 +301,15 @@ class Trainer:
                 + (", size: {:d}, {}".format(self.input_size[0], eta_str))
             )
 
-            # log losses in tensorboard (0111)
+            # TODO: log losses in tensorboard (0111)
             if self.rank == 0:          # need this line, or will 'process.wait()'
                 for k, v in loss_meter.items():
                     self.tblogger.add_scalar("loss/"+k, v.latest, self.epoch * self.max_iter + (self.iter+1))
+
+            # TODO: log parameters of losses in tensorboard (0114)
+            if self.rank == 0:          # need this line, or will 'process.wait()'
+                for k, v in self.loss_settings.items():
+                    self.tblogger.add_scalar("loss_settings/"+k, v, self.epoch * self.max_iter + (self.iter+1))
 
             self.meter.clear_meters()
 
