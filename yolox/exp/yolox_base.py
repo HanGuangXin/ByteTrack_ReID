@@ -74,7 +74,7 @@ class Exp(BaseExp):
                 nID = settings['total_ids']
             else:
                 print("[warning] No nID got!!!")
-                nID = 1
+                nID = 2		# default value should not be 1
             backbone = YOLOPAFPN(self.depth, self.width, in_channels=in_channels)
             head = YOLOXHead(self.num_classes, self.width, in_channels=in_channels, nID=nID)
             self.model = YOLOX(backbone, head)

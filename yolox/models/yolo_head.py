@@ -159,7 +159,7 @@ class YOLOXHead(nn.Module):
                     ]
                 )
             )
-            self.reid_preds.append(      # 1 Conv2d layer, output channel is 'self.n_anchors * self.num_classes'
+            self.reid_preds.append(      # 1 Conv2d layer, output channel is 'self.emb_dim'
                 nn.Conv2d(
                     in_channels=int(256 * width),
                     out_channels=self.emb_dim,

@@ -18,7 +18,7 @@ import motmetrics as mm
 from collections import OrderedDict
 from pathlib import Path
 
-
+# python3 tools/track.py -f exps/example/mot/yolox_s_mot17_half.py -c YOLOX_outputs/yolox_s_mot17_half(0114_uncertainty_NoUpdate)/latest_ckpt.pth.tar -b 1 -d 1 --fp16 --fuse
 def make_parser():
     parser = argparse.ArgumentParser("YOLOX Eval")
     parser.add_argument("-expn", "--experiment-name", type=str, default=None)

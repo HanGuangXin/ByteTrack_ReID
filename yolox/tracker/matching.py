@@ -73,8 +73,8 @@ def ious(atlbrs, btlbrs):
 def iou_distance(atracks, btracks):
     """
     Compute cost based on IoU
-    :type atracks: list[STrack]
-    :type btracks: list[STrack]
+    :type atracks: list[STrack], strack_pool
+    :type btracks: list[STrack], detections
 
     :rtype cost_matrix np.ndarray
     """
@@ -82,9 +82,9 @@ def iou_distance(atracks, btracks):
     if (len(atracks)>0 and isinstance(atracks[0], np.ndarray)) or (len(btracks) > 0 and isinstance(btracks[0], np.ndarray)):
         atlbrs = atracks
         btlbrs = btracks
-    else:
-        atlbrs = [track.tlbr for track in atracks]
-        btlbrs = [track.tlbr for track in btracks]
+    else:       # goes here
+        atlbrs = [track.tlbr for track in atracks]      # bboxes of strack_pool
+        btlbrs = [track.tlbr for track in btracks]      # bboxes of detections
     _ious = ious(atlbrs, btlbrs)
     cost_matrix = 1 - _ious
 
@@ -174,8 +174,8 @@ def fuse_score(cost_matrix, detections):
     if cost_matrix.size == 0:
         return cost_matrix
     iou_sim = 1 - cost_matrix
-    det_scores = np.array([det.score for det in detections])
-    det_scores = np.expand_dims(det_scores, axis=0).repeat(cost_matrix.shape[0], axis=0)
+    det_scores = np.array([det.score for det in detections])    # shape of [detections_num, ]
+    det_scores = np.expand_dims(det_scores, axis=0).repeat(cost_matrix.shape[0], axis=0)    # [1, detections_num] -> [STrack_num, detections_num]
     fuse_sim = iou_sim * det_scores
     fuse_cost = 1 - fuse_sim
     return fuse_cost

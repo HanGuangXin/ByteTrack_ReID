@@ -34,7 +34,8 @@ def write_results(filename, results):
                 if track_id < 0:
                     continue
                 x1, y1, w, h = tlwh
-                line = save_format.format(frame=frame_id, id=track_id, x1=round(x1, 1), y1=round(y1, 1), w=round(w, 1), h=round(h, 1), s=round(score, 2))
+                line = save_format.format(frame=frame_id, id=track_id, x1=round(x1, 1), y1=round(y1, 1), w=round(w, 1),
+                                          h=round(h, 1), s=round(score, 2))
                 f.write(line)
     logger.info('save results to {}'.format(filename))
 
@@ -47,7 +48,8 @@ def write_results_no_score(filename, results):
                 if track_id < 0:
                     continue
                 x1, y1, w, h = tlwh
-                line = save_format.format(frame=frame_id, id=track_id, x1=round(x1, 1), y1=round(y1, 1), w=round(w, 1), h=round(h, 1))
+                line = save_format.format(frame=frame_id, id=track_id, x1=round(x1, 1), y1=round(y1, 1), w=round(w, 1),
+                                          h=round(h, 1))
                 f.write(line)
     logger.info('save results to {}'.format(filename))
 
@@ -59,7 +61,7 @@ class MOTEvaluator:
     """
 
     def __init__(
-        self, args, dataloader, img_size, confthre, nmsthre, num_classes):
+            self, args, dataloader, img_size, confthre, nmsthre, num_classes):
         """
         Args:
             dataloader (Dataloader): evaluate dataloader.
@@ -77,14 +79,14 @@ class MOTEvaluator:
         self.args = args
 
     def evaluate(
-        self,
-        model,
-        distributed=False,
-        half=False,
-        trt_file=None,
-        decoder=None,
-        test_size=None,
-        result_folder=None
+            self,
+            model,
+            distributed=False,
+            half=False,
+            trt_file=None,
+            decoder=None,
+            test_size=None,
+            result_folder=None
     ):
         """
         COCO average precision (AP) Evaluation. Iterate inference on the test dataset
@@ -101,9 +103,9 @@ class MOTEvaluator:
             summary (sr): summary info of evaluation.
         """
         # TODO half to amp_test
-        tensor_type = torch.cuda.HalfTensor if half else torch.cuda.FloatTensor
+        tensor_type = torch.cuda.HalfTensor if half else torch.cuda.FloatTensor  # HalfTensor
         model = model.eval()
-        if half:
+        if half:  # True
             model = model.half()
         ids = []
         data_list = []
@@ -124,11 +126,11 @@ class MOTEvaluator:
             x = torch.ones(1, 3, test_size[0], test_size[1]).cuda()
             model(x)
             model = model_trt
-            
-        tracker = BYTETracker(self.args)
-        ori_thresh = self.args.track_thresh
+
+        tracker = BYTETracker(self.args)  # yolox/tracker/byte_tracker.py
+        ori_thresh = self.args.track_thresh  # 0.6
         for cur_iter, (imgs, _, info_imgs, ids) in enumerate(
-            progress_bar(self.dataloader)
+                progress_bar(self.dataloader)
         ):
             with torch.no_grad():
                 # init tracker
@@ -153,7 +155,7 @@ class MOTEvaluator:
                     self.args.track_thresh = 0.67
                 else:
                     self.args.track_thresh = ori_thresh
-                
+
                 if video_name == 'MOT20-06' or video_name == 'MOT20-08':
                     self.args.track_thresh = 0.3
                 else:
@@ -175,18 +177,21 @@ class MOTEvaluator:
                 if is_time_record:
                     start = time.time()
 
-                outputs = model(imgs)
+                outputs = model(imgs)  # [batchsize, all_anchors, 6], 6 for bbox + obj + cls
                 if decoder is not None:
                     outputs = decoder(outputs, dtype=outputs.type())
 
-                outputs = postprocess(outputs, self.num_classes, self.confthre, self.nmsthre)
-            
+                # outputs after threshold and NMS, list of length [batchsize],
+                # each element's shape is [all_anchors, 7], 6 for bbox + obj + cls_conf + class
+                outputs = postprocess(outputs, self.num_classes, self.confthre, self.nmsthre)  # yolox/utils/boxes.py
+
                 if is_time_record:
                     infer_end = time_synchronized()
                     inference_time += infer_end - start
 
             output_results = self.convert_to_coco_format(outputs, info_imgs, ids)
-            data_list.extend(output_results)
+            data_list.extend(
+                output_results)  # list, length of [batchsize], dict which keys is ['image_id', 'category_id', 'bbox', 'score', 'segmentation']
 
             # run tracking
             if outputs[0] is not None:
@@ -197,7 +202,7 @@ class MOTEvaluator:
                 for t in online_targets:
                     tlwh = t.tlwh
                     tid = t.track_id
-                    vertical = tlwh[2] / tlwh[3] > 1.6
+                    vertical = tlwh[2] / tlwh[3] > 1.6  # only keep track results whose H/W > 1.6 (only for person)
                     if tlwh[2] * tlwh[3] > self.args.min_box_area and not vertical:
                         online_tlwhs.append(tlwh)
                         online_ids.append(tid)
@@ -208,7 +213,7 @@ class MOTEvaluator:
             if is_time_record:
                 track_end = time_synchronized()
                 track_time += track_end - infer_end
-            
+
             if cur_iter == len(self.dataloader) - 1:
                 result_filename = os.path.join(result_folder, '{}.txt'.format(video_names[video_id]))
                 write_results(result_filename, results)
@@ -224,14 +229,14 @@ class MOTEvaluator:
         return eval_results
 
     def evaluate_sort(
-        self,
-        model,
-        distributed=False,
-        half=False,
-        trt_file=None,
-        decoder=None,
-        test_size=None,
-        result_folder=None
+            self,
+            model,
+            distributed=False,
+            half=False,
+            trt_file=None,
+            decoder=None,
+            test_size=None,
+            result_folder=None
     ):
         """
         COCO average precision (AP) Evaluation. Iterate inference on the test dataset
@@ -271,11 +276,11 @@ class MOTEvaluator:
             x = torch.ones(1, 3, test_size[0], test_size[1]).cuda()
             model(x)
             model = model_trt
-            
+
         tracker = Sort(self.args.track_thresh)
-        
+
         for cur_iter, (imgs, _, info_imgs, ids) in enumerate(
-            progress_bar(self.dataloader)
+                progress_bar(self.dataloader)
         ):
             with torch.no_grad():
                 # init tracker
@@ -305,7 +310,7 @@ class MOTEvaluator:
                     outputs = decoder(outputs, dtype=outputs.type())
 
                 outputs = postprocess(outputs, self.num_classes, self.confthre, self.nmsthre)
-            
+
                 if is_time_record:
                     infer_end = time_synchronized()
                     inference_time += infer_end - start
@@ -330,7 +335,7 @@ class MOTEvaluator:
             if is_time_record:
                 track_end = time_synchronized()
                 track_time += track_end - infer_end
-            
+
             if cur_iter == len(self.dataloader) - 1:
                 result_filename = os.path.join(result_folder, '{}.txt'.format(video_names[video_id]))
                 write_results_no_score(result_filename, results)
@@ -346,15 +351,15 @@ class MOTEvaluator:
         return eval_results
 
     def evaluate_deepsort(
-        self,
-        model,
-        distributed=False,
-        half=False,
-        trt_file=None,
-        decoder=None,
-        test_size=None,
-        result_folder=None,
-        model_folder=None
+            self,
+            model,
+            distributed=False,
+            half=False,
+            trt_file=None,
+            decoder=None,
+            test_size=None,
+            result_folder=None,
+            model_folder=None
     ):
         """
         COCO average precision (AP) Evaluation. Iterate inference on the test dataset
@@ -394,11 +399,11 @@ class MOTEvaluator:
             x = torch.ones(1, 3, test_size[0], test_size[1]).cuda()
             model(x)
             model = model_trt
-            
+
         tracker = DeepSort(model_folder, min_confidence=self.args.track_thresh)
-        
+
         for cur_iter, (imgs, _, info_imgs, ids) in enumerate(
-            progress_bar(self.dataloader)
+                progress_bar(self.dataloader)
         ):
             with torch.no_grad():
                 # init tracker
@@ -428,7 +433,7 @@ class MOTEvaluator:
                     outputs = decoder(outputs, dtype=outputs.type())
 
                 outputs = postprocess(outputs, self.num_classes, self.confthre, self.nmsthre)
-            
+
                 if is_time_record:
                     infer_end = time_synchronized()
                     inference_time += infer_end - start
@@ -453,7 +458,7 @@ class MOTEvaluator:
             if is_time_record:
                 track_end = time_synchronized()
                 track_time += track_end - infer_end
-            
+
             if cur_iter == len(self.dataloader) - 1:
                 result_filename = os.path.join(result_folder, '{}.txt'.format(video_names[video_id]))
                 write_results_no_score(result_filename, results)
@@ -469,15 +474,15 @@ class MOTEvaluator:
         return eval_results
 
     def evaluate_motdt(
-        self,
-        model,
-        distributed=False,
-        half=False,
-        trt_file=None,
-        decoder=None,
-        test_size=None,
-        result_folder=None,
-        model_folder=None
+            self,
+            model,
+            distributed=False,
+            half=False,
+            trt_file=None,
+            decoder=None,
+            test_size=None,
+            result_folder=None,
+            model_folder=None
     ):
         """
         COCO average precision (AP) Evaluation. Iterate inference on the test dataset
@@ -517,10 +522,10 @@ class MOTEvaluator:
             x = torch.ones(1, 3, test_size[0], test_size[1]).cuda()
             model(x)
             model = model_trt
-            
+
         tracker = OnlineTracker(model_folder, min_cls_score=self.args.track_thresh)
         for cur_iter, (imgs, _, info_imgs, ids) in enumerate(
-            progress_bar(self.dataloader)
+                progress_bar(self.dataloader)
         ):
             with torch.no_grad():
                 # init tracker
@@ -550,7 +555,7 @@ class MOTEvaluator:
                     outputs = decoder(outputs, dtype=outputs.type())
 
                 outputs = postprocess(outputs, self.num_classes, self.confthre, self.nmsthre)
-            
+
                 if is_time_record:
                     infer_end = time_synchronized()
                     inference_time += infer_end - start
@@ -577,7 +582,7 @@ class MOTEvaluator:
             if is_time_record:
                 track_end = time_synchronized()
                 track_time += track_end - infer_end
-            
+
             if cur_iter == len(self.dataloader) - 1:
                 result_filename = os.path.join(result_folder, '{}.txt'.format(video_names[video_id]))
                 write_results(result_filename, results)
@@ -595,13 +600,13 @@ class MOTEvaluator:
     def convert_to_coco_format(self, outputs, info_imgs, ids):
         data_list = []
         for (output, img_h, img_w, img_id) in zip(
-            outputs, info_imgs[0], info_imgs[1], ids
+                outputs, info_imgs[0], info_imgs[1], ids
         ):
             if output is None:
                 continue
             output = output.cpu()
 
-            bboxes = output[:, 0:4]
+            bboxes = output[:, 0:4]  # get predicted bbox
 
             # preprocessing: resize
             scale = min(
@@ -610,9 +615,9 @@ class MOTEvaluator:
             bboxes /= scale
             bboxes = xyxy2xywh(bboxes)
 
-            cls = output[:, 6]
-            scores = output[:, 4] * output[:, 5]
-            for ind in range(bboxes.shape[0]):
+            cls = output[:, 6]  # get predicted class
+            scores = output[:, 4] * output[:, 5]  # score = obj_conf * cls_conf
+            for ind in range(bboxes.shape[0]):  # iteration over number of bboxes
                 label = self.dataloader.dataset.class_ids[int(cls[ind])]
                 pred_data = {
                     "image_id": int(img_id),
@@ -643,9 +648,9 @@ class MOTEvaluator:
             [
                 "Average {} time: {:.2f} ms".format(k, v)
                 for k, v in zip(
-                    ["forward", "track", "inference"],
-                    [a_infer_time, a_track_time, (a_infer_time + a_track_time)],
-                )
+                ["forward", "track", "inference"],
+                [a_infer_time, a_track_time, (a_infer_time + a_track_time)],
+            )
             ]
         )
 
@@ -665,7 +670,7 @@ class MOTEvaluator:
                 from pycocotools import cocoeval as COCOeval
                 logger.warning("Use standard COCOeval.")
             '''
-            #from pycocotools.cocoeval import COCOeval
+            # from pycocotools.cocoeval import COCOeval
             from yolox.layers import COCOeval_opt as COCOeval
             cocoEval = COCOeval(cocoGt, cocoDt, annType[1])
             cocoEval.evaluate()
