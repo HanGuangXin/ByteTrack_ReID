@@ -31,7 +31,7 @@ def filter_box(output, scale_range):
 
 
 def postprocess(prediction, num_classes, conf_thre=0.7, nms_thre=0.45):
-    box_corner = prediction.new(prediction.shape)
+    box_corner = prediction.new(prediction.shape)       # [batchsize, all_anchors, 6]
     box_corner[:, :, 0] = prediction[:, :, 0] - prediction[:, :, 2] / 2
     box_corner[:, :, 1] = prediction[:, :, 1] - prediction[:, :, 3] / 2
     box_corner[:, :, 2] = prediction[:, :, 0] + prediction[:, :, 2] / 2
@@ -39,7 +39,7 @@ def postprocess(prediction, num_classes, conf_thre=0.7, nms_thre=0.45):
     prediction[:, :, :4] = box_corner[:, :, :4]
 
     output = [None for _ in range(len(prediction))]
-    for i, image_pred in enumerate(prediction):
+    for i, image_pred in enumerate(prediction):     # image_pred: [all_anchors, 6]
 
         # If none are remaining => process next image
         if not image_pred.size(0):
@@ -49,11 +49,14 @@ def postprocess(prediction, num_classes, conf_thre=0.7, nms_thre=0.45):
             image_pred[:, 5 : 5 + num_classes], 1, keepdim=True
         )
 
-        conf_mask = (image_pred[:, 4] * class_conf.squeeze() >= conf_thre).squeeze()
+        conf_mask = (image_pred[:, 4] * class_conf.squeeze() >= conf_thre).squeeze()    # filter with confidence threshold
         # _, conf_mask = torch.topk((image_pred[:, 4] * class_conf.squeeze()), 1000)
         # Detections ordered as (x1, y1, x2, y2, obj_conf, class_conf, class_pred)
-        detections = torch.cat((image_pred[:, :5], class_conf, class_pred.float()), 1)
-        detections = detections[conf_mask]
+        # detections = torch.cat((image_pred[:, :5], class_conf, class_pred.float()), 1)  # [all_anchors, 7], bbox + obj + class_conf + clsss
+        # TODO: with embedding, [all_anchors, 7+128], bbox + obj + class_conf + clsss + embedding
+        detections = torch.cat((image_pred[:, :5], class_conf, class_pred.float(), image_pred[:, 6:]), 1)
+
+        detections = detections[conf_mask]      # get detections whose conf is higher than threshold
         if not detections.size(0):
             continue
 
@@ -63,7 +66,7 @@ def postprocess(prediction, num_classes, conf_thre=0.7, nms_thre=0.45):
             detections[:, 6],
             nms_thre,
         )
-        detections = detections[nms_out_index]
+        detections = detections[nms_out_index]      # detections after NMS
         if output[i] is None:
             output[i] = detections
         else:

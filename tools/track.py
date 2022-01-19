@@ -186,8 +186,13 @@ def main(exp, args, num_gpu):
         logger.info("loading checkpoint")
         loc = "cuda:{}".format(rank)
         ckpt = torch.load(ckpt_file, map_location=loc)
+
         # load the model state dict
-        model.load_state_dict(ckpt["model"])
+        if "head.reid_classifier.weight" in ckpt["model"]:      # TODO: remove checkpoint of ReID classifier
+            ckpt["model"].pop("head.reid_classifier.weight")
+        if "head.reid_classifier.bias" in ckpt["model"]:        # TODO: remove checkpoint of ReID classifier
+            ckpt["model"].pop("head.reid_classifier.bias")
+        model.load_state_dict(ckpt["model"], strict=False)      # TODO: set strict=False for missing keys of classifier
         logger.info("loaded checkpoint done.")
 
     if is_distributed:

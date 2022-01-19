@@ -1,4 +1,49 @@
-# ByteTrack
+# ByteTrack_ReID
+
+[ByteTrack](https://github.com/ifzhang/ByteTrack) is the SOTA tracker in MOT benchmarks with strong detector [YOLOX](https://github.com/Megvii-BaseDetection/YOLOX) and a simple association strategy only based on motion information. 
+
+Motion information (IoU distance) is efficient and effective in short-term tracking, but can not be used for recovering targets after long-time disappear or conditions with moving camera.
+
+So it is important to enhance ByteTrack with a ReID module for long-term tracking, improving the performance under other challenging conditions, such as moving camera.
+
+Some code is borrowed from [FairMOT](https://github.com/ifzhang/FairMOT)
+
+For now, the results are trained on half of MOT17 and tested on the other half of MOT17. And the performance is lower than the original performance. 
+
+Any issue and suggestions are welcome!
+
+<p align="center"><img src="assets/training_loss.png" /></p>
+
+<p align="center"><img src="assets/tracking_ByteTrack.png" /></p>
+
+<center>
+    tracking results using tracking strategy of ByteTrack, with detection head and ReID head trained together
+</center>
+
+<p align="center"><img src="assets/tracking_FairMOT.png" /></p>
+
+<center>
+    tracking results using tracking strategy of FairMOT, with detection head and ReID head trained together
+</center>
+
+## Modifications, TODOs and Performance
+
+### Modifications
+
+- Enhanced ByteTrack with a ReID module (head) following the paradigm of FairMOT.
+- Add a classifier for supervised training of ReID head.
+- Using uncertainty loss in FairMOT for the balance of detection and ReID tasks.
+- Tracking strategy is borrowed from FairMOT
+
+### TODOs
+
+- [ ] support more datasets
+- [ ] single class –> multiple class
+- [ ] other loss functions for better ReID performance
+- [ ] other strategies for multiple tasks balance
+- [ ] … …
+
+> The following contents is original README in ByteTrack.
 
 [![PWC](https://img.shields.io/endpoint.svg?url=https://paperswithcode.com/badge/bytetrack-multi-object-tracking-by-1/multi-object-tracking-on-mot17)](https://paperswithcode.com/sota/multi-object-tracking-on-mot17?p=bytetrack-multi-object-tracking-by-1)
 
@@ -289,6 +334,16 @@ python3 tools/demo_track.py video -f exps/example/mot/yolox_x_mix_det.py -c pret
   author={Zhang, Yifu and Sun, Peize and Jiang, Yi and Yu, Dongdong and Yuan, Zehuan and Luo, Ping and Liu, Wenyu and Wang, Xinggang},
   journal={arXiv preprint arXiv:2110.06864},
   year={2021}
+}
+
+@article{zhang2021fairmot,
+  title={Fairmot: On the fairness of detection and re-identification in multiple object tracking},
+  author={Zhang, Yifu and Wang, Chunyu and Wang, Xinggang and Zeng, Wenjun and Liu, Wenyu},
+  journal={International Journal of Computer Vision},
+  volume={129},
+  pages={3069--3087},
+  year={2021},
+  publisher={Springer}
 }
 ```
 

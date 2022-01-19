@@ -121,11 +121,11 @@ def embedding_distance(tracks, detections, metric='cosine'):
     cost_matrix = np.zeros((len(tracks), len(detections)), dtype=np.float)
     if cost_matrix.size == 0:
         return cost_matrix
-    det_features = np.asarray([track.curr_feat for track in detections], dtype=np.float)
+    det_features = np.asarray([track.curr_feat for track in detections], dtype=np.float)    # [detection_num, emd_dim]
     #for i, track in enumerate(tracks):
         #cost_matrix[i, :] = np.maximum(0.0, cdist(track.smooth_feat.reshape(1,-1), det_features, metric))
-    track_features = np.asarray([track.smooth_feat for track in tracks], dtype=np.float)
-    cost_matrix = np.maximum(0.0, cdist(track_features, det_features, metric))  # Nomalized features
+    track_features = np.asarray([track.smooth_feat for track in tracks], dtype=np.float)    # [track_num, emd_dim]
+    cost_matrix = np.maximum(0.0, cdist(track_features, det_features, metric))  # Nomalized features, metric: cosine, [track_num, detection_num]
     return cost_matrix
 
 
@@ -179,3 +179,9 @@ def fuse_score(cost_matrix, detections):
     fuse_sim = iou_sim * det_scores
     fuse_cost = 1 - fuse_sim
     return fuse_cost
+
+
+# TODO: fuse motion and appearance dist
+def fuse_dists(dists1, dist2, fuse_ratio=0.5):
+    cost_matrix = fuse_ratio * dists1 + (1 - fuse_ratio) * dist2
+    return cost_matrix

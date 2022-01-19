@@ -229,36 +229,17 @@ class BYTETracker(object):
             else:
                 tracked_stracks.append(track)
 
-        ''' Step 2: First association, with embedding'''        # TODO: borrowed from FairMOT
-        strack_pool = joint_stracks(tracked_stracks, self.lost_stracks)
-        # Predict the current location with KF
-        STrack.multi_predict(strack_pool)
-        dists = matching.embedding_distance(strack_pool, detections)
-        #dists = matching.fuse_iou(dists, strack_pool, detections)
-        #dists = matching.iou_distance(strack_pool, detections)
-        dists = matching.fuse_motion(self.kalman_filter, dists, strack_pool, detections)    # kalman filter with maha distance doing gating
-        matches, u_track, u_detection = matching.linear_assignment(dists, thresh=self.args.match_thresh)
-
-        for itracked, idet in matches:
-            track = strack_pool[itracked]
-            det = detections[idet]
-            if track.state == TrackState.Tracked:
-                track.update(detections[idet], self.frame_id)
-                activated_starcks.append(track)
-            else:
-                track.re_activate(det, self.frame_id, new_id=False)
-                refind_stracks.append(track)
-
         ''' Step 2: First association, with high score detection boxes'''
-        detections = [detections[i] for i in u_detection]
-        r_tracked_stracks = [strack_pool[i] for i in u_track if strack_pool[i].state == TrackState.Tracked]
-        dists = matching.iou_distance(r_tracked_stracks, detections)      # IoU distance. 1 - _ious
+        strack_pool = joint_stracks(tracked_stracks, self.lost_stracks)     # combine tracked_stracks and lost_stracks to strack_pool
+        # Predict the current location with KF
+        STrack.multi_predict(strack_pool)       # Kalman Filter predict
+        dists = matching.iou_distance(strack_pool, detections)      # IoU distance. 1 - _ious
         if not self.args.mot20:
             dists = matching.fuse_score(dists, detections)          # refine 'dists' with detection scores
-        matches, u_track, u_detection = matching.linear_assignment(dists, thresh=0.5)    # Hungarain
+        matches, u_track, u_detection = matching.linear_assignment(dists, thresh=self.args.match_thresh)    # Hungarain
 
         for itracked, idet in matches:          # do update w.r.t matching results
-            track = r_tracked_stracks[itracked]
+            track = strack_pool[itracked]
             det = detections[idet]
             if track.state == TrackState.Tracked:
                 track.update(detections[idet], self.frame_id)   # update of class STrack, update Kalman Filter, track state and other settings
@@ -275,11 +256,11 @@ class BYTETracker(object):
                           (tlbr, s, f) in zip(dets_second, scores_second, id_feature_second)]
         else:
             detections_second = []
-        second_tracked_stracks = [r_tracked_stracks[i] for i in u_track if r_tracked_stracks[i].state == TrackState.Tracked]     # TODO: why Tracked?
-        dists = matching.iou_distance(second_tracked_stracks, detections_second)     # IoU distance. 1 - _ious
-        matches, u_track, u_detection_second = matching.linear_assignment(dists, thresh=0.4)    # Hungarain with lower thresh
+        r_tracked_stracks = [strack_pool[i] for i in u_track if strack_pool[i].state == TrackState.Tracked]     # TODO: why Tracked?
+        dists = matching.iou_distance(r_tracked_stracks, detections_second)     # IoU distance. 1 - _ious
+        matches, u_track, u_detection_second = matching.linear_assignment(dists, thresh=0.5)    # Hungarain with lower thresh
         for itracked, idet in matches:      # do update w.r.t second matching results
-            track = second_tracked_stracks[itracked]
+            track = r_tracked_stracks[itracked]
             det = detections_second[idet]
             if track.state == TrackState.Tracked:
                 track.update(det, self.frame_id)
@@ -289,7 +270,7 @@ class BYTETracker(object):
                 refind_stracks.append(track)
 
         for it in u_track:              # set unmatched tracks as 'lost'
-            track = second_tracked_stracks[it]
+            track = r_tracked_stracks[it]
             if not track.state == TrackState.Lost:
                 track.mark_lost()
                 lost_stracks.append(track)

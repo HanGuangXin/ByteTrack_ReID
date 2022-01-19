@@ -24,7 +24,7 @@ import itertools
 import json
 import tempfile
 import time
-
+import torch.nn.functional as F
 
 def write_results(filename, results):
     save_format = '{frame},{id},{x1},{y1},{w},{h},{s},-1,-1,-1\n'
@@ -183,19 +183,23 @@ class MOTEvaluator:
 
                 # outputs after threshold and NMS, list of length [batchsize],
                 # each element's shape is [all_anchors, 7], 6 for bbox + obj + cls_conf + class
+                # TODO: postprocess for reid embeddings, list of length 1, shape of [detection_nms_num, 4 + obj + cls_conf + cls + embedding]
                 outputs = postprocess(outputs, self.num_classes, self.confthre, self.nmsthre)  # yolox/utils/boxes.py
+                id_feature = outputs[0][:, 7:]
+                id_feature = F.normalize(id_feature, dim=1)  # normalization of id embeddings
+                id_feature = id_feature.cpu().numpy()
 
                 if is_time_record:
                     infer_end = time_synchronized()
                     inference_time += infer_end - start
 
-            output_results = self.convert_to_coco_format(outputs, info_imgs, ids)
+            output_results = self.convert_to_coco_format(outputs, info_imgs, ids)       # TODO: no need fpr process for embeddings?
             data_list.extend(
                 output_results)  # list, length of [batchsize], dict which keys is ['image_id', 'category_id', 'bbox', 'score', 'segmentation']
 
             # run tracking
             if outputs[0] is not None:
-                online_targets = tracker.update(outputs[0], info_imgs, self.img_size)
+                online_targets = tracker.update(outputs[0], info_imgs, self.img_size, id_feature)   # TODO: ReID. add 'id_feature'
                 online_tlwhs = []
                 online_ids = []
                 online_scores = []
