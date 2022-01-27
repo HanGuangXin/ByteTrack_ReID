@@ -14,10 +14,11 @@ from yolox.utils.visualize import plot_tracking
 from yolox.tracker.byte_tracker import BYTETracker
 from yolox.tracking_utils.timer import Timer
 
+import torch.nn.functional as F
 
 IMAGE_EXT = [".jpg", ".jpeg", ".webp", ".bmp", ".png"]
 
-
+# python3 tools/demo_track.py image --path datasets/mot/test/MOT17-01-DPM -f exps/example/mot/yolox_x_mix_det.py -c pretrained/bytetrack_x_mot17.pth.tar --fp16 --fuse --save_result
 def make_parser():
     parser = argparse.ArgumentParser("ByteTrack Demo!")
     parser.add_argument(
@@ -187,8 +188,11 @@ def image_demo(predictor, vis_folder, current_time, args):
 
     for frame_id, img_path in enumerate(files, 1):
         outputs, img_info = predictor.inference(img_path, timer)
+        id_feature = outputs[0][:, 7:]  # [detect_num, 128]
+        id_feature = F.normalize(id_feature, dim=1)  # normalization of id embeddings
+        id_feature = id_feature.cpu().numpy()
         if outputs[0] is not None:
-            online_targets = tracker.update(outputs[0], [img_info['height'], img_info['width']], exp.test_size)
+            online_targets = tracker.update(outputs[0], [img_info['height'], img_info['width']], exp.test_size, id_feature)
             online_tlwhs = []
             online_ids = []
             online_scores = []
@@ -334,7 +338,12 @@ def main(exp, args):
         logger.info("loading checkpoint")
         ckpt = torch.load(ckpt_file, map_location="cpu")
         # load the model state dict
-        model.load_state_dict(ckpt["model"])
+        # load the model state dict
+        if "head.reid_classifier.weight" in ckpt["model"]:  # TODO: remove checkpoint of ReID classifier
+            ckpt["model"].pop("head.reid_classifier.weight")
+        if "head.reid_classifier.bias" in ckpt["model"]:  # TODO: remove checkpoint of ReID classifier
+            ckpt["model"].pop("head.reid_classifier.bias")
+        model.load_state_dict(ckpt["model"], strict=False)  # TODO: set strict=False for missing keys of classifier
         logger.info("loaded checkpoint done.")
 
     if args.fuse:
