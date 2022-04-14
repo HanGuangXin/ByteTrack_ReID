@@ -258,7 +258,7 @@ class YOLOXHead(nn.Module):
                 dtype=xin[0].dtype,
             )
         else:
-            # TODO: Need to modify for reid
+            # TODO: no need to modify for reid
             self.hw = [x.shape[-2:] for x in outputs]
             # [batch, n_anchors_all, 85]
             outputs = torch.cat(
@@ -503,7 +503,7 @@ class YOLOXHead(nn.Module):
 
         # TODO: ReID. Uncertainty Loss
         # print("self.s_det:", self.s_det, "self.s_id:", self.s_id)           # for debug (0114)
-        det_loss = reg_weight * loss_iou + loss_obj + loss_cls + loss_l1 + 0.5 * loss_id
+        det_loss = reg_weight * loss_iou + loss_obj + loss_cls + loss_l1
         id_loss = loss_id
         loss = torch.exp(-self.s_det) * det_loss + torch.exp(-self.s_id) * id_loss + (self.s_det + self.s_id)
         loss *= 0.5
@@ -559,6 +559,8 @@ class YOLOXHead(nn.Module):
             y_shifts = y_shifts.cpu()
 
         img_size = imgs.shape[2:]
+        # fg_mask: [all_anchors]
+        # is_in_boxes_and_center: [gt_num, matched_anchors]
         fg_mask, is_in_boxes_and_center = self.get_in_boxes_info(
             gt_bboxes_per_image,
             expanded_strides,
@@ -609,10 +611,10 @@ class YOLOXHead(nn.Module):
 
         (
             num_fg,
-            gt_matched_classes,
-            gt_matched_ids,
-            pred_ious_this_matching,
-            matched_gt_inds,
+            gt_matched_classes,     # [k_anchors]
+            gt_matched_ids,         # [k_anchors]
+            pred_ious_this_matching,    # [k_anchors]
+            matched_gt_inds,        # [k_anchors]
         ) = self.dynamic_k_matching(cost, pair_wise_ious, gt_classes, gt_ids, num_gt, fg_mask)          # assignment strategy 3
         del pair_wise_cls_loss, cost, pair_wise_ious, pair_wise_ious_loss
 
@@ -623,12 +625,12 @@ class YOLOXHead(nn.Module):
             matched_gt_inds = matched_gt_inds.cuda()
 
         return (
-            gt_matched_classes,
-            gt_matched_ids,
-            fg_mask,
-            pred_ious_this_matching,
-            matched_gt_inds,
-            num_fg,
+            gt_matched_classes,             # [k_anchors]
+            gt_matched_ids,                 # [k_anchors]
+            fg_mask,                        # [all_anchors]
+            pred_ious_this_matching,        # [k_anchors]
+            matched_gt_inds,                # [k_anchors]
+            num_fg,                         # k_anchors
         )
 
     def get_in_boxes_info(
