@@ -1,6 +1,11 @@
 # ByteTrack_ReID
 
-[update 20220414]: Fix loss computation bug in yolo_head.py. Fix feature update in FairMOT tracker when recovering a tracklet. Fix training set in yolox_s_mot_half using train_half.json instead of train.json. Trained model can be download here [jc69](https://pan.baidu.com/s/1K_cowLmRYEYazA71v5Ultw). Trained model's mAP should be 0.556 with MOTA 72.6 using ByteTrack and MOTA 70.9 using FairMOT. Note that reid embeddings only trained on MOT17 half is not reliable due to limited ID annotations.
+**[update 20220414]**: 
+1. Fix loss computation bug in yolo_head.py. 
+2. Fix feature update in FairMOT tracker when recovering a tracklet. 
+3. Fix training set in yolox_s_mot_half using train_half.json instead of train.json. 
+4. Trained model can be download here [jc69](https://pan.baidu.com/s/1K_cowLmRYEYazA71v5Ultw). Trained model's mAP should be 0.556 with MOTA 72.6 using ByteTrack and MOTA 70.9 using FairMOT. 
+5. Note that reid embeddings only trained on MOT17 half is not reliable due to limited ID annotations.
 
 [ByteTrack](https://github.com/ifzhang/ByteTrack) is the SOTA tracker in MOT benchmarks with strong detector [YOLOX](https://github.com/Megvii-BaseDetection/YOLOX) and a simple association strategy only based on motion information. 
 
