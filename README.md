@@ -2,7 +2,9 @@
 
 **[update 20220428]**
 I found a ReID related bug of original ByteTrack. I made a PR to ByteTrack and it is merged to master branch of ByteTrack. https://github.com/ifzhang/ByteTrack/pull/184
+
 So the ReID part of current code will not be train correctly when track_id becomes larger. I will update the code when I got time.
+
 Or you can make a PR to help me out!
 
 **[update 20220414]**: 
