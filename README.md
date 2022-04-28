@@ -1,6 +1,6 @@
 # ByteTrack_ReID
 
-**[update 20220428]**
+**[update 20220428]**:
 
 I found a ReID related bug of original ByteTrack. I made a PR to ByteTrack and it is merged to master branch of ByteTrack. https://github.com/ifzhang/ByteTrack/pull/184
 
