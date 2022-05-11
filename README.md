@@ -1,5 +1,13 @@
 # ByteTrack_ReID
 
+**[update 20220511]**:
+
+1. Please open issue with English, not Chinese, so the discussi can benifit the community.
+
+2. To switch from different trackers, please replace the byte_track.py with other files. 
+
+3. Training proceduer is the same as original ByteTrack. If you want to train the model on larger datasets with ids, please follow JDE/FairMOT.
+
 **[update 20220428]**:
 
 I found a ReID related bug of original ByteTrack. I made a PR to ByteTrack and it is merged to master branch of ByteTrack. https://github.com/ifzhang/ByteTrack/pull/184
