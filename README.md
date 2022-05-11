@@ -2,9 +2,9 @@
 
 **[update 20220511]**:
 
-1. Please open issue with English, not Chinese, so the discussi can benifit the community.
+1. Please open issue with English, not Chinese, so the discussion can benifit the community.
 
-2. To switch from different trackers, please replace the byte_track.py with other files. 
+2. To switch from different trackers to another, please replace the byte_track.py with other files. 
 
 3. Training proceduer is the same as original ByteTrack. If you want to train the model on larger datasets with ids, please follow JDE/FairMOT.
 
