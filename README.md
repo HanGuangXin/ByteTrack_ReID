@@ -1,5 +1,17 @@
 # ByteTrack_ReID
 
+**[update 20231122]**
+
+fix reid FP16 bug in my [RP](https://github.com/ifzhang/ByteTrack/pull/184) to official [ByteTrack](https://github.com/ifzhang/ByteTrack). Now ReID module brings more befifits.
+
+Also support HOTA metric from TrackEval.
+
+|   Tracker    | before fix ReID FP 16 Bug<br />AP50:95 AP50 AP75 \| HOTA MOTA IDF1 | after fix ReID FP 16 Bug<br />AP50:95 AP50 AP75 \| HOTA MOTA IDF1 |
+| :----------: | :----------------------------------------------------------: | :----------------------------------------------------------: |
+|  ByteTrack   |          0.567 0.868 0.647 \| 62.038 73.297 74.935           |          0.567 0.868 0.647 \| 62.038 73.297 74.935           |
+|   FairMOT    |          0.567 0.868 0.647 \| 61.921 73.292 74.754           |          0.567 0.868 0.647 \| 61.921 73.292 74.754           |
+| FairMOT+BYTE |          0.567 0.868 0.647 \| 61.602 73.359 73.648           |          0.567 0.868 0.647 \| 61.602 73.359 73.648           |
+
 **[update 20220514]**:
 
 Onedrive [link](https://1drv.ms/u/s!Ah_DaS8JQYSHlnPl4vhZvz10JTB4?e=jpehmF) of trained model. Trained model's mAP should be 0.556 with MOTA 72.6 using ByteTrack and MOTA 70.9 using FairMOT tracking strategy. 
