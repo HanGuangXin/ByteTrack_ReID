@@ -18,7 +18,23 @@ import motmetrics as mm
 from collections import OrderedDict
 from pathlib import Path
 
-# python3 tools/track.py -f exps/example/mot/yolox_s_mot17_half.py -c YOLOX_outputs/yolox_s_mot17_half(0114_uncertainty_NoUpdate)/latest_ckpt.pth.tar -b 1 -d 1 --fp16 --fuse
+## (ByteTracker) AP: 0.567 0.868 0.647. MOTA 72.0%. IDF1 74.3%
+## HOTA, MOTA, IDF1: 62.038 73.297 74.935
+# python3 tools/track.py \
+# --dataset mot17 \
+# -f exps/example/mot/yolox_s_mot17_half_parareid.py \
+# -c YOLOX_outputs/yolox_s_mot17_half_d4b12/latest_ckpt.pth.tar \
+# -b 1 -d 1 --fp16 --fuse \
+# --tracker bytetrack
+## (FairMOTTracker) AP: 0.567 0.868 0.647. MOTA 72.3%. IDF1 74.3%
+## (with byte) HOTA, MOTA, IDF1: 61.602 73.359 73.648
+## (without byte) HOTA, MOTA, IDF1: 61.921 73.292 74.754
+# python3 tools/track.py \
+# --dataset mot17 \
+# -f exps/example/mot/yolox_s_mot17_half_parareid.py \
+# -c YOLOX_outputs/yolox_s_mot17_half_d4b12/latest_ckpt.pth.tar \
+# -b 1 -d 1 --fp16 --fuse \
+# --tracker fairmot
 def make_parser():
     parser = argparse.ArgumentParser("YOLOX Eval")
     parser.add_argument("-expn", "--experiment-name", type=str, default=None)
@@ -107,6 +123,10 @@ def make_parser():
     parser.add_argument("--match_thresh", type=float, default=0.9, help="matching threshold for tracking")
     parser.add_argument("--min-box-area", type=float, default=100, help='filter out tiny boxes')
     parser.add_argument("--mot20", dest="mot20", default=False, action="store_true", help="test mot20.")
+    # [hgx20231122] tracker type
+    parser.add_argument("--tracker", default="bytetrack", choices=["bytetrack", "fairmot"], help="tracker type.")
+    # [hgx20231122] dataset
+    parser.add_argument("--dataset", default="mot17", choices=["mot17", "mot20", "dancetrack"], help="tracker type.")
     return parser
 
 
@@ -217,62 +237,113 @@ def main(exp, args, num_gpu):
         decoder = None
 
     # start evaluate
-    *_, summary = evaluator.evaluate(
-        model, is_distributed, args.fp16, trt_file, decoder, exp.test_size, results_folder
-    )
+    logger.info("tracker: " + args.tracker)
+    if args.tracker == "bytetrack":
+        *_, summary = evaluator.evaluate_bytetrack(
+            model, is_distributed, args.fp16, trt_file, decoder, exp.test_size, results_folder
+        )
+    elif args.tracker == "fairmot":
+        *_, summary = evaluator.evaluate_fairmot(
+            model, is_distributed, args.fp16, trt_file, decoder, exp.test_size, results_folder
+        )
+    else:
+        assert NotImplementedError
+
     logger.info("\n" + summary)
 
-    # evaluate MOTA
-    mm.lap.default_solver = 'lap'
+    # # evaluate MOTA
+    # mm.lap.default_solver = 'lap'
+    #
+    # if exp.val_ann == 'val_half.json':
+    #     gt_type = '_val_half'
+    # else:
+    #     gt_type = ''
+    # print('gt_type', gt_type)
+    # if args.mot20:
+    #     gtfiles = glob.glob(os.path.join('datasets/MOT20/train', '*/gt/gt{}.txt'.format(gt_type)))
+    # else:
+    #     gtfiles = glob.glob(os.path.join('datasets/mot/train', '*/gt/gt{}.txt'.format(gt_type)))
+    # print('gt_files', gtfiles)
+    # tsfiles = [f for f in glob.glob(os.path.join(results_folder, '*.txt')) if not os.path.basename(f).startswith('eval')]
+    #
+    # logger.info('Found {} groundtruths and {} test files.'.format(len(gtfiles), len(tsfiles)))
+    # logger.info('Available LAP solvers {}'.format(mm.lap.available_solvers))
+    # logger.info('Default LAP solver \'{}\''.format(mm.lap.default_solver))
+    # logger.info('Loading files.')
+    #
+    # gt = OrderedDict([(Path(f).parts[-3], mm.io.loadtxt(f, fmt='mot15-2D', min_confidence=1)) for f in gtfiles])
+    # ts = OrderedDict([(os.path.splitext(Path(f).parts[-1])[0], mm.io.loadtxt(f, fmt='mot15-2D', min_confidence=-1)) for f in tsfiles])
+    #
+    # mh = mm.metrics.create()
+    # accs, names = compare_dataframes(gt, ts)
+    #
+    # logger.info('Running metrics')
+    # metrics = ['recall', 'precision', 'num_unique_objects', 'mostly_tracked',
+    #            'partially_tracked', 'mostly_lost', 'num_false_positives', 'num_misses',
+    #            'num_switches', 'num_fragmentations', 'mota', 'motp', 'num_objects']
+    # summary = mh.compute_many(accs, names=names, metrics=metrics, generate_overall=True)
+    # # summary = mh.compute_many(accs, names=names, metrics=mm.metrics.motchallenge_metrics, generate_overall=True)
+    # # print(mm.io.render_summary(
+    # #   summary, formatters=mh.formatters,
+    # #   namemap=mm.io.motchallenge_metric_names))
+    # div_dict = {
+    #     'num_objects': ['num_false_positives', 'num_misses', 'num_switches', 'num_fragmentations'],
+    #     'num_unique_objects': ['mostly_tracked', 'partially_tracked', 'mostly_lost']}
+    # for divisor in div_dict:
+    #     for divided in div_dict[divisor]:
+    #         summary[divided] = (summary[divided] / summary[divisor])
+    # fmt = mh.formatters
+    # change_fmt_list = ['num_false_positives', 'num_misses', 'num_switches', 'num_fragmentations', 'mostly_tracked',
+    #                    'partially_tracked', 'mostly_lost']
+    # for k in change_fmt_list:
+    #     fmt[k] = fmt['mota']
+    # print(mm.io.render_summary(summary, formatters=fmt, namemap=mm.io.motchallenge_metric_names))
+    #
+    # metrics = mm.metrics.motchallenge_metrics + ['num_objects']
+    # summary = mh.compute_many(accs, names=names, metrics=metrics, generate_overall=True)
+    # print(mm.io.render_summary(summary, formatters=mh.formatters, namemap=mm.io.motchallenge_metric_names))
 
-    if exp.val_ann == 'val_half.json':
-        gt_type = '_val_half'
+    if args.dataset == "dancetrack":
+        hota_command = "python3 TrackEval/scripts/run_mot_challenge.py " \
+                       "--SPLIT_TO_EVAL val  " \
+                       "--METRICS HOTA CLEAR Identity " \
+                       "--GT_FOLDER datasets/dancetrack/val " \
+                       "--SEQMAP_FILE datasets/dancetrack/val/val_seqmap.txt " \
+                       "--SKIP_SPLIT_FOL True " \
+                       "--TRACKERS_TO_EVAL '' " \
+                       "--TRACKER_SUB_FOLDER ''  " \
+                       "--USE_PARALLEL True " \
+                       "--NUM_PARALLEL_CORES 8 " \
+                       "--PLOT_CURVES False " \
+                       "--TRACKERS_FOLDER " + results_folder
+    elif args.dataset == "mot17":
+        hota_command = "python TrackEval/scripts/run_mot_challenge.py " \
+                       "--BENCHMARK MOT17 " \
+                       "--SPLIT_TO_EVAL train " \
+                       "--TRACKERS_TO_EVAL '' " \
+                       "--METRICS HOTA CLEAR Identity VACE " \
+                       "--TIME_PROGRESS False " \
+                       "--USE_PARALLEL False " \
+                       "--NUM_PARALLEL_CORES 1  " \
+                       "--GT_FOLDER datasets/mot/ " \
+                       "--TRACKERS_FOLDER " + results_folder + " " \
+                       "--GT_LOC_FORMAT {gt_folder}/{seq}/gt/gt_val_half.txt"
+    elif args.dataset == "mot20":
+        hota_command = "python TrackEval/scripts/run_mot_challenge.py " \
+                       "--BENCHMARK MOT20 " \
+                       "--SPLIT_TO_EVAL train " \
+                       "--TRACKERS_TO_EVAL '' " \
+                       "--METRICS HOTA CLEAR Identity VACE " \
+                       "--TIME_PROGRESS False " \
+                       "--USE_PARALLEL False " \
+                       "--NUM_PARALLEL_CORES 1  " \
+                       "--GT_FOLDER datasets/MOT20/ " \
+                       "--TRACKERS_FOLDER " + results_folder + " " \
+                       "--GT_LOC_FORMAT {gt_folder}/{seq}/gt/gt_val_half.txt"
     else:
-        gt_type = ''
-    print('gt_type', gt_type)
-    if args.mot20:
-        gtfiles = glob.glob(os.path.join('datasets/MOT20/train', '*/gt/gt{}.txt'.format(gt_type)))
-    else:
-        gtfiles = glob.glob(os.path.join('datasets/mot/train', '*/gt/gt{}.txt'.format(gt_type)))
-    print('gt_files', gtfiles)
-    tsfiles = [f for f in glob.glob(os.path.join(results_folder, '*.txt')) if not os.path.basename(f).startswith('eval')]
+        assert NotImplementedError
+    os.system(hota_command)
 
-    logger.info('Found {} groundtruths and {} test files.'.format(len(gtfiles), len(tsfiles)))
-    logger.info('Available LAP solvers {}'.format(mm.lap.available_solvers))
-    logger.info('Default LAP solver \'{}\''.format(mm.lap.default_solver))
-    logger.info('Loading files.')
-    
-    gt = OrderedDict([(Path(f).parts[-3], mm.io.loadtxt(f, fmt='mot15-2D', min_confidence=1)) for f in gtfiles])
-    ts = OrderedDict([(os.path.splitext(Path(f).parts[-1])[0], mm.io.loadtxt(f, fmt='mot15-2D', min_confidence=-1)) for f in tsfiles])    
-    
-    mh = mm.metrics.create()    
-    accs, names = compare_dataframes(gt, ts)
-    
-    logger.info('Running metrics')
-    metrics = ['recall', 'precision', 'num_unique_objects', 'mostly_tracked',
-               'partially_tracked', 'mostly_lost', 'num_false_positives', 'num_misses',
-               'num_switches', 'num_fragmentations', 'mota', 'motp', 'num_objects']
-    summary = mh.compute_many(accs, names=names, metrics=metrics, generate_overall=True)
-    # summary = mh.compute_many(accs, names=names, metrics=mm.metrics.motchallenge_metrics, generate_overall=True)
-    # print(mm.io.render_summary(
-    #   summary, formatters=mh.formatters, 
-    #   namemap=mm.io.motchallenge_metric_names))
-    div_dict = {
-        'num_objects': ['num_false_positives', 'num_misses', 'num_switches', 'num_fragmentations'],
-        'num_unique_objects': ['mostly_tracked', 'partially_tracked', 'mostly_lost']}
-    for divisor in div_dict:
-        for divided in div_dict[divisor]:
-            summary[divided] = (summary[divided] / summary[divisor])
-    fmt = mh.formatters
-    change_fmt_list = ['num_false_positives', 'num_misses', 'num_switches', 'num_fragmentations', 'mostly_tracked',
-                       'partially_tracked', 'mostly_lost']
-    for k in change_fmt_list:
-        fmt[k] = fmt['mota']
-    print(mm.io.render_summary(summary, formatters=fmt, namemap=mm.io.motchallenge_metric_names))
-
-    metrics = mm.metrics.motchallenge_metrics + ['num_objects']
-    summary = mh.compute_many(accs, names=names, metrics=metrics, generate_overall=True)
-    print(mm.io.render_summary(summary, formatters=mh.formatters, namemap=mm.io.motchallenge_metric_names))
     logger.info('Completed')
 
 

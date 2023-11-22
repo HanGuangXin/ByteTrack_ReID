@@ -7,4 +7,6 @@ from .losses import IOUloss
 from .yolo_fpn import YOLOFPN
 from .yolo_head import YOLOXHead
 from .yolo_pafpn import YOLOPAFPN
-from .yolox import YOLOX
+from .yolox import YOLOX, YOLOX_ParaReID
+
+from .yolo_head_parallel_reid import YOLOXHead_ParaReID

@@ -96,13 +96,15 @@ class Trainer:
         iter_start_time = time.time()
 
         inps, targets = self.prefetcher.next()      # imgs and targets
+        track_ids = targets[:, :, 5]
+        targets = targets[:, :, :5]
         inps = inps.to(self.data_type)
         targets = targets.to(self.data_type)
         targets.requires_grad = False
         data_end_time = time.time()
 
         with torch.cuda.amp.autocast(enabled=self.amp_training):
-            outputs = self.model(inps, targets)             # output = model(input)
+            outputs = self.model(inps, targets, track_ids=track_ids)             # output = model(input)
         loss = outputs["total_loss"]
 
         if 'settings' in outputs.keys():        # TODO 0114: loss parameters

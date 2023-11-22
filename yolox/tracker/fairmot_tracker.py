@@ -12,7 +12,8 @@ from .basetrack import BaseTrack, TrackState
 
 class STrack(BaseTrack):
     shared_kalman = KalmanFilter()
-    def __init__(self, tlwh, score):
+
+    def __init__(self, tlwh, score, temp_feat, buffer_size=30):  # todo: ReID. add inputs of 'temp_feat', 'buffer_size'
 
         # wait activate
         self._tlwh = np.asarray(tlwh, dtype=np.float)
@@ -22,6 +23,23 @@ class STrack(BaseTrack):
 
         self.score = score
         self.tracklet_len = 0
+
+        # TODO: add the following values and functions
+        self.smooth_feat = None
+        self.update_features(temp_feat)
+        self.features = deque([], maxlen=buffer_size)
+        self.alpha = 0.9
+
+    # TODO: ReID. for update embeddings during tracking
+    def update_features(self, feat):
+        feat /= np.linalg.norm(feat)
+        self.curr_feat = feat
+        if self.smooth_feat is None:
+            self.smooth_feat = feat
+        else:
+            self.smooth_feat = self.alpha * self.smooth_feat + (1 - self.alpha) * feat
+        self.features.append(feat)
+        self.smooth_feat /= np.linalg.norm(self.smooth_feat)
 
     def predict(self):
         mean_state = self.mean.copy()
@@ -60,6 +78,7 @@ class STrack(BaseTrack):
         self.mean, self.covariance = self.kalman_filter.update(
             self.mean, self.covariance, self.tlwh_to_xyah(new_track.tlwh)
         )
+        self.update_features(new_track.curr_feat)       # TODO: added 20220322
         self.tracklet_len = 0
         self.state = TrackState.Tracked
         self.is_activated = True
@@ -68,7 +87,7 @@ class STrack(BaseTrack):
             self.track_id = self.next_id()
         self.score = new_track.score
 
-    def update(self, new_track, frame_id):
+    def update(self, new_track, frame_id, update_feature=True):     # TODO: 'update_feature' added 02003022
         """
         Update a matched track
         :type new_track: STrack
@@ -86,6 +105,8 @@ class STrack(BaseTrack):
         self.is_activated = True
 
         self.score = new_track.score
+        if update_feature:                  # TODO: added 20220322
+            self.update_features(new_track.curr_feat)
 
     @property
     # @jit(nopython=True)
@@ -142,7 +163,7 @@ class STrack(BaseTrack):
         return 'OT_{}_({}-{})'.format(self.track_id, self.start_frame, self.end_frame)
 
 
-class BYTETracker(object):
+class FairMOTTracker(object):
     def __init__(self, args, frame_rate=30):
         self.tracked_stracks = []  # type: list[STrack]
         self.lost_stracks = []  # type: list[STrack]
@@ -150,21 +171,22 @@ class BYTETracker(object):
 
         self.frame_id = 0
         self.args = args
-        #self.det_thresh = args.track_thresh
+        # self.det_thresh = args.track_thresh
         self.det_thresh = args.track_thresh + 0.1
         self.buffer_size = int(frame_rate / 30.0 * args.track_buffer)
         self.max_time_lost = self.buffer_size
         self.kalman_filter = KalmanFilter()
 
         # [hgx 0119], to see contribution of each module in trakcing
+        self.embedding_matched_percent = []
         self.IoU_matched_percent = []
         self.LowScore_matched_percent = []
 
-    def update(self, output_results, img_info, img_size, id_feature=None):
+    def update(self, output_results, img_info, img_size, id_feature):  # TODO: ReID. add 'id_feature'
         """
         update tracks, e.g. activated, refind, lost and removed tracks
         Args:
-            output_results: tensor of shape [bbox_num, 7], 7 for bbox(4) + obj_conf + cls_conf + cls
+            output_results: tensor of shape [bbox_num, 7 + 128], 7 for bbox(4) + obj_conf + cls_conf + cls, 128 for embedding
             img_info:list, [origin_H, origin_W, 1, 1 img_path]
             img_size: tuple, (input_H, input_W)
 
@@ -180,29 +202,32 @@ class BYTETracker(object):
         if output_results.shape[1] == 5:
             scores = output_results[:, 4]
             bboxes = output_results[:, :4]
-        else:       # goes here
+        else:  # goes here
             output_results = output_results.cpu().numpy()
-            scores = output_results[:, 4] * output_results[:, 5]        # score = obj_conf * cls_conf
-            bboxes = output_results[:, :4]                              # x1y1x2y2, e.g. tlbr
-        img_h, img_w = img_info[0], img_info[1]         # origin image size
-        scale = min(img_size[0] / float(img_h), img_size[1] / float(img_w))     # input/origin, <1
-        bboxes /= scale     # map bbox to origin image size
+            scores = output_results[:, 4] * output_results[:, 5]  # score = obj_conf * cls_conf
+            bboxes = output_results[:, :4]  # x1y1x2y2, e.g. tlbr
+        img_h, img_w = img_info[0], img_info[1]  # origin image size
+        scale = min(img_size[0] / float(img_h), img_size[1] / float(img_w))  # input/origin, <1
+        bboxes /= scale  # map bbox to origin image size
 
         remain_inds = scores > self.args.track_thresh
         inds_low = scores > 0.1
         inds_high = scores < self.args.track_thresh
 
-        inds_second = np.logical_and(inds_low, inds_high)       # self.args.track_thresh > score > 0.1, for second matching
-        dets_second = bboxes[inds_second]                       # detections for second matching
-        dets = bboxes[remain_inds]                              # detections for first matching, high quality
+        inds_second = np.logical_and(inds_low, inds_high)  # self.args.track_thresh > score > 0.1, for second matching
+        dets_second = bboxes[inds_second]  # detections for second matching
+        dets = bboxes[remain_inds]  # detections for first matching, high quality
         scores_keep = scores[remain_inds]
+        id_feature_keep = id_feature[remain_inds]  # TODO: ReID. ID feature of 1st stage matching
         scores_second = scores[inds_second]
+        id_feature_second = id_feature[inds_second]  # TODO: ReID. ID feature of 2nd stage matching
 
-        # detections for first matching (high score)
         if len(dets) > 0:
-            '''Detections'''
-            detections = [STrack(STrack.tlbr_to_tlwh(tlbr), s) for  # detections to STracks, list [OT_0_(0-0), ...]
-                          (tlbr, s) in zip(dets, scores_keep)]      # class STrack in yolox/tracker/byte_tracker.py
+            '''Detections'''  # TODO: 'f, 30' for ReID
+            detections = [STrack(STrack.tlbr_to_tlwh(tlbr), s, f, 30) for
+                          # detections to STracks, list [OT_0_(0-0), ...]
+                          (tlbr, s, f) in
+                          zip(dets, scores_keep, id_feature_keep)]  # class STrack in yolox/tracker/byte_tracker.py
         else:
             detections = []
 
@@ -211,67 +236,88 @@ class BYTETracker(object):
         tracked_stracks = []  # type: list[STrack]
         for track in self.tracked_stracks:
             if not track.is_activated:
-                unconfirmed.append(track)       # tracked but bot confirmed, e.g. newly init tracks
+                unconfirmed.append(track)  # tracked but bot confirmed, e.g. newly init tracks
             else:
-                tracked_stracks.append(track)   # normally tracked objects, e.g. activated
+                tracked_stracks.append(track)
 
-        ''' Step 2: First association, with high score detection boxes'''
-        strack_pool = joint_stracks(tracked_stracks, self.lost_stracks)     # combine tracked_stracks and lost_stracks to strack_pool
+        ''' Step 1: First association, with embedding'''  # TODO: borrowed from FairMOT
+        strack_pool = joint_stracks(tracked_stracks, self.lost_stracks)
         # Predict the current location with KF
-        STrack.multi_predict(strack_pool)       # Kalman Filter predict, only for normally tracked and lost, not for uncomfirmed
-        dists = matching.iou_distance(strack_pool, detections)      # IoU distance. 1 - _ious
-        if not self.args.mot20:
-            dists = matching.fuse_score(dists, detections)          # refine 'dists' with detection scores
-        matches, u_track, u_detection = matching.linear_assignment(dists, thresh=self.args.match_thresh)    # Hungarain
+        STrack.multi_predict(strack_pool)
+        dists = matching.embedding_distance(strack_pool, detections)
+        dists = matching.fuse_motion(self.kalman_filter, dists, strack_pool,
+                                     detections)  # kalman filter with maha distance doing gating
+        matches, u_track, u_detection = matching.linear_assignment(dists, thresh=0.4)  # self.args.match_thresh
 
-        for itracked, idet in matches:          # do update w.r.t matching results
-            track = strack_pool[itracked]       # track w.r.t index
-            det = detections[idet]              # detection w.r.t index
-            if track.state == TrackState.Tracked:       # normally tracked successfully tracked
-                track.update(detections[idet], self.frame_id)   # update of class STrack, update Kalman Filter, track state and other settings
+        for itracked, idet in matches:
+            track = strack_pool[itracked]
+            det = detections[idet]
+            if track.state == TrackState.Tracked:
+                track.update(detections[idet], self.frame_id)
                 activated_starcks.append(track)
-            else:                                       # lost tracklets re-found
-                track.re_activate(det, self.frame_id, new_id=False)     # re-activate and update Kalman Filter
-                refind_stracks.append(track)
-
-        ''' Step 3: Second association, with low score detection boxes'''
-        # association the untrack to the low score detections
-        if len(dets_second) > 0:
-            '''Detections'''
-            detections_second = [STrack(STrack.tlbr_to_tlwh(tlbr), s) for   # detections_second  --> STrack
-                          (tlbr, s) in zip(dets_second, scores_second)]
-        else:
-            detections_second = []
-        r_tracked_stracks = [strack_pool[i] for i in u_track if strack_pool[i].state == TrackState.Tracked]     # TODO: why Tracked and not Lost?
-        dists = matching.iou_distance(r_tracked_stracks, detections_second)     # IoU distance. 1 - _ious
-        matches, u_track, u_detection_second = matching.linear_assignment(dists, thresh=0.5)    # Hungarain with lower thresh
-
-        for itracked, idet in matches:      # do update w.r.t second matching results
-            track = r_tracked_stracks[itracked]
-            det = detections_second[idet]
-            if track.state == TrackState.Tracked:       # normally tracklets successfully tracked
-                track.update(det, self.frame_id)
-                activated_starcks.append(track)
-            else:                                       # lost tracklets re-found
+            else:
                 track.re_activate(det, self.frame_id, new_id=False)
                 refind_stracks.append(track)
 
-        for it in u_track:              # set unmatched tracks as 'lost'
-            track = r_tracked_stracks[it]
+        ''' Step 2: First association, with high score detection boxes'''
+        detections = [detections[i] for i in u_detection]
+        r_tracked_stracks = [strack_pool[i] for i in u_track if strack_pool[i].state == TrackState.Tracked]
+        dists = matching.iou_distance(r_tracked_stracks, detections)  # IoU distance. 1 - _ious
+        if not self.args.mot20:
+            dists = matching.fuse_score(dists, detections)  # refine 'dists' with detection scores
+        matches, u_track, u_detection = matching.linear_assignment(dists, thresh=self.args.match_thresh)  # Hungarain
+
+        for itracked, idet in matches:  # do update w.r.t matching results
+            track = r_tracked_stracks[itracked]
+            det = detections[idet]
+            if track.state == TrackState.Tracked:
+                track.update(detections[idet],
+                             self.frame_id)  # update of class STrack, update Kalman Filter, track state and other settings
+                activated_starcks.append(track)
+            else:
+                track.re_activate(det, self.frame_id, new_id=False)
+                refind_stracks.append(track)
+
+        # ''' Step 3: Second association, with low score detection boxes'''
+        # # association the untrack to the low score detections
+        # if len(dets_second) > 0:  # TODO: 'f, 30' for ReID
+        #     '''Detections'''
+        #     detections_second = [STrack(STrack.tlbr_to_tlwh(tlbr), s, f, 30) for  # detections_second  --> STrack
+        #                          (tlbr, s, f) in zip(dets_second, scores_second, id_feature_second)]
+        # else:
+        #     detections_second = []
+        # second_tracked_stracks = [r_tracked_stracks[i] for i in u_track if
+        #                           r_tracked_stracks[i].state == TrackState.Tracked]  # TODO: why Tracked?
+        # dists = matching.iou_distance(second_tracked_stracks, detections_second)  # IoU distance. 1 - _ious
+        # matches, u_track, u_detection_second = matching.linear_assignment(dists,
+        #                                                                   thresh=0.5)  # Hungarain with lower thresh
+        #
+        # for itracked, idet in matches:  # do update w.r.t second matching results
+        #     track = second_tracked_stracks[itracked]
+        #     det = detections_second[idet]
+        #     if track.state == TrackState.Tracked:
+        #         track.update(det, self.frame_id)
+        #         activated_starcks.append(track)
+        #     else:
+        #         track.re_activate(det, self.frame_id, new_id=False)
+        #         refind_stracks.append(track)
+
+        for it in u_track:  # set unmatched tracks as 'lost'
+            track = second_tracked_stracks[it]
             if not track.state == TrackState.Lost:
                 track.mark_lost()
                 lost_stracks.append(track)
 
         '''Deal with unconfirmed tracks, usually tracks with only one beginning frame'''
-        detections = [detections[i] for i in u_detection]       # unmatched detections
-        dists = matching.iou_distance(unconfirmed, detections)      # IoU distance. 1 - _ious
+        detections = [detections[i] for i in u_detection]  # unmatched detections
+        dists = matching.iou_distance(unconfirmed, detections)  # IoU distance. 1 - _ious
         if not self.args.mot20:
-            dists = matching.fuse_score(dists, detections)      # refine 'dists' with detection scores
+            dists = matching.fuse_score(dists, detections)  # refine 'dists' with detection scores
         matches, u_unconfirmed, u_detection = matching.linear_assignment(dists, thresh=0.7)
-        for itracked, idet in matches:      # unconfirmed tracklets matched
+        for itracked, idet in matches:
             unconfirmed[itracked].update(detections[idet], self.frame_id)
             activated_starcks.append(unconfirmed[itracked])
-        for it in u_unconfirmed:            # remove unconfirmed tracklets for 2 frames
+        for it in u_unconfirmed:
             track = unconfirmed[it]
             track.mark_removed()
             removed_stracks.append(track)
@@ -284,7 +330,7 @@ class BYTETracker(object):
             track.activate(self.kalman_filter, self.frame_id)
             activated_starcks.append(track)
         """ Step 5: Update state"""
-        for track in self.lost_stracks:     # remove lost tracklets for 'max_time_lost' frames
+        for track in self.lost_stracks:
             if self.frame_id - track.end_frame > self.max_time_lost:
                 track.mark_removed()
                 removed_stracks.append(track)
